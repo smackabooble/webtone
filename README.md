@@ -14,7 +14,8 @@ npm run dev
 - **Open** or drop an audio file (monophonic works best, e.g. a single voice).
 - Drag a note up or down to change its pitch. Hold **Alt** for free (unsnapped) movement.
 - Double-click a note to reset it.
-- **Snap all** moves every note to the nearest semitone.
+- Pick a **key** and **scale** to limit snapping to those notes; rows outside the scale are dimmed.
+- **Snap all** moves every note to the nearest note in the scale.
 - Click empty space to move the playhead. **Space** plays and stops.
 - Mouse wheel scrolls pitch, **Shift + wheel** scrolls time, **Ctrl + wheel** zooms.
 - **Ctrl + Z** undoes.

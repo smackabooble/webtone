@@ -3,6 +3,7 @@ import { analyze } from '../src/dsp/analyze';
 import { psola } from '../src/dsp/psola';
 import { hzToMidi, segment } from '../src/dsp/segment';
 import { makeDemo } from '../src/audio/demo';
+import { SCALES, scaleMask, snapToScale } from '../src/dsp/scale';
 
 const SR = 44100;
 
@@ -37,6 +38,25 @@ describe('pitch detection', () => {
     expect(notes.length).toBe(8);
     const expected = [60.3, 62.4, 63.7, 65.2, 67.4, 65.3, 63.6, 60.2];
     notes.forEach((n, i) => expect(Math.abs(n.pitch - expected[i])).toBeLessThan(0.15));
+  });
+});
+
+describe('scale snapping', () => {
+  it('snaps to the nearest semitone in chromatic', () => {
+    const m = scaleMask(0, SCALES.Chromatic);
+    expect(snapToScale(60.3, m)).toBe(60);
+    expect(snapToScale(60.6, m)).toBe(61);
+  });
+
+  it('only lands on notes of the chosen key and scale', () => {
+    const cMajor = scaleMask(0, SCALES.Major);
+    expect(snapToScale(61.2, cMajor)).toBe(62); // C#4 -> D4
+    expect(snapToScale(60.8, cMajor)).toBe(60); // closer to C4 than D4
+    expect(snapToScale(70.9, cMajor)).toBe(71); // A#4 -> B4
+    const aMinor = scaleMask(9, SCALES.Minor);
+    expect(snapToScale(68.4, aMinor)).toBe(69); // G#4 -> A4
+    const dMajor = scaleMask(2, SCALES.Major);
+    expect(snapToScale(60.2, dMajor)).toBe(61); // C4 -> C#4
   });
 });
 

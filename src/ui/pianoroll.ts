@@ -4,6 +4,7 @@ const KEYW = 44;
 const RULER = 22;
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const BLACK = [0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0];
+const CHROMATIC = new Array<boolean>(12).fill(true);
 const MAX_SHIFT = 12;
 
 export class PianoRoll {
@@ -12,6 +13,10 @@ export class PianoRoll {
   hopSec = 0.005;
   duration = 0;
   playhead = 0;
+  /** Pitch classes notes snap to; rows outside it are dimmed. */
+  scale: boolean[] = CHROMATIC;
+  /** Snaps a dragged pitch to an allowed note. */
+  snap: (pitch: number) => number = Math.round;
 
   /** Called before the first change of a drag, so the app can save undo state. */
   onEditStart: () => void = () => {};
@@ -166,7 +171,7 @@ export class PianoRoll {
     }
     const d = this.drag;
     let target = d.target + (d.y - y) / this.rowH;
-    if (!e.altKey) target = Math.round(target);
+    if (!e.altKey) target = this.snap(target);
     let shift = target - d.note.pitch;
     shift = Math.max(-MAX_SHIFT, Math.min(MAX_SHIFT, shift));
     if (shift !== d.note.shift) {
@@ -211,8 +216,9 @@ export class PianoRoll {
     for (let p = pLo; p <= pHi; p++) {
       const y = this.yOf(p) - rowH / 2;
       const pc = ((p % 12) + 12) % 12;
-      if (BLACK[pc]) {
-        g.fillStyle = '#14161b';
+      const full = this.scale.every(Boolean);
+      if (full ? BLACK[pc] : !this.scale[pc]) {
+        g.fillStyle = full ? '#14161b' : '#101216';
         g.fillRect(KEYW, y, w - KEYW, rowH);
       }
       g.fillStyle = pc === 0 ? '#343946' : '#22252d';
@@ -302,7 +308,8 @@ export class PianoRoll {
       const pc = ((p % 12) + 12) % 12;
       const y = this.yOf(p);
       if (y < RULER + 4) continue;
-      g.fillStyle = pc === 0 ? '#d8dce4' : BLACK[pc] ? '#5d6472' : '#8a91a0';
+      const inScale = this.scale[pc];
+      g.fillStyle = !inScale ? '#444a57' : pc === 0 ? '#d8dce4' : BLACK[pc] ? '#5d6472' : '#8a91a0';
       g.fillText(NAMES[pc] + (Math.floor(p / 12) - 1), KEYW - 6, y);
     }
     g.fillStyle = '#2c303a';

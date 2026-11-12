@@ -43,6 +43,14 @@ button {
   font: inherit;
   cursor: pointer;
 }
+select {
+  background: #2a2e38;
+  color: inherit;
+  border: 1px solid #3a3f4c;
+  border-radius: 5px;
+  padding: 5px 6px;
+  font: inherit;
+}
 button:hover:not(:disabled) {
   background: #343946;
 }
