@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>webtone</title>
+  </head>
+  <body>
+    <header id="toolbar">
+      <strong class="logo">webtone</strong>
+      <button id="open">Open</button>
+      <button id="demo">Demo</button>
+      <span class="sep"></span>
+      <button id="play" disabled>Play</button>
+      <button id="snap" disabled>Snap all</button>
+      <button id="reset" disabled>Reset</button>
+      <button id="undo" disabled>Undo</button>
+      <span class="sep"></span>
+      <button id="export" disabled>Export WAV</button>
+      <span id="status"></span>
+      <input id="file" type="file" accept="audio/*" hidden />
+    </header>
+    <main id="stage">
+      <canvas id="roll"></canvas>
+      <div id="hint">Drop an audio file here, or press <b>Open</b> / <b>Demo</b></div>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
