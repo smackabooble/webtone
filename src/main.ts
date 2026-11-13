@@ -81,7 +81,7 @@ async function loadBuffer(buf: AudioBuffer) {
   undoStack.length = 0;
   playOffset = 0;
   $('hint').classList.add('hidden');
-  roll.setData(notes, result.f0, result.hopSec, buf.duration);
+  roll.setData(notes, result.f0, result.env, result.hopSec, buf.duration);
   setEnabled(true);
   setStatus(notes.length ? `${notes.length} notes` : 'No pitched notes found.');
 }

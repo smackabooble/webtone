@@ -9,7 +9,7 @@ body {
 body {
   display: flex;
   flex-direction: column;
-  background: #14262f;
+  background: #16262f;
   color: #d6e4ea;
   font: 13px/1.4 system-ui, sans-serif;
   overflow: hidden;
