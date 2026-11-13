@@ -9,6 +9,10 @@ npm install
 npm run dev
 ```
 
+## Live
+
+Deployed with GitHub Pages: https://smackabooble.github.io/webtone/
+
 ## Use
 
 - **Open** or drop an audio file (monophonic works best, e.g. a single voice).
