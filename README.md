@@ -15,10 +15,10 @@ Deployed with GitHub Pages: https://smackabooble.github.io/webtone/
 
 ## Use
 
-1. Load a vocal from the **File** menu (or drop a file on the page), record with the red **●** button, or try the demo. A solo vocal works best.
+1. Load a vocal from the **File** menu (or drop a file on the page), record with the microphone button, or try the demo. A solo vocal works best.
 2. Each sung note is an orange block; the line is the pitch that was sung.
-3. **Drag a note** up or down to change its pitch. It snaps to the chosen key and scale; hold **Alt** to move freely.
-4. The three knobs work on every note at once. Drag a knob up or down (**Shift** for fine, double-click to reset):
+3. **Drag a note** up or down to change its pitch. It snaps to the chosen key and scale; hold **Alt** to move freely. For an exact amount, select a note and type an **Offset** in the panel on the right.
+4. The sliders in **Pitch correction** work on every note at once:
    - **Center** pulls notes towards the nearest note of the scale.
    - **Variation** smooths out vibrato and wobble inside each note.
    - **Transition** sets how quickly pitch glides from one note to the next.
@@ -30,6 +30,10 @@ Tools (left side): **Select** (`V`), **Cut** (`C`, click a note to split it, wit
 Tempo: the **BPM** box sets the bar and beat grid on the ruler and what cuts snap to. It does not change the speed of the audio.
 
 Other controls: wheel scrolls pitch, **Shift** + wheel scrolls time, **Ctrl** + wheel zooms (or use the zoom buttons, `+`, `-`, `0`); arrow keys move the selected note one scale step; **Backspace** resets a note; **Ctrl+Z** / **Ctrl+Shift+Z** undo and redo; **Ctrl+O** opens, **Ctrl+E** exports; **?** shows help.
+
+## Interface
+
+The interface uses [Adobe Spectrum](https://spectrum.adobe.com/) through [Spectrum Web Components](https://opensource.adobe.com/spectrum-web-components/) (dark theme): action buttons and groups, sliders, number fields, pickers, menus, tooltips, a dialog, toasts and Spectrum's colour, type and spacing tokens. The piano roll canvas reads its colours from the same tokens. Every control has a fixed size, so nothing moves when its state changes.
 
 ## How it works
 

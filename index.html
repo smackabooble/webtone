@@ -3,188 +3,271 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
     <title>webtone</title>
   </head>
   <body>
-    <header id="toolbar">
-      <span class="logo">webtone</span>
+    <sp-theme id="theme" system="spectrum" color="dark" scale="medium">
+      <div id="app">
+        <!-- ===== Application bar ===== -->
+        <header id="appbar">
+          <span class="app-title">webtone</span>
 
-      <details id="fileMenu" class="menu">
-        <summary class="btn">File</summary>
-        <div class="menu-list">
-          <button data-action="open">Open audio…<kbd>Ctrl O</kbd></button>
-          <button data-action="record">Record from microphone</button>
-          <button data-action="demo">Load the demo</button>
-          <hr />
-          <button data-action="export" disabled>Export WAV…<kbd>Ctrl E</kbd></button>
-        </div>
-      </details>
+          <sp-action-menu id="fileMenu" size="s" quiet label="File" class="file-menu">
+            <span slot="icon"></span>
+            <span slot="label">File</span>
+            <sp-menu-item value="open">
+              <sp-icon-folder-open slot="icon"></sp-icon-folder-open>
+              Open audio…
+              <span slot="value">Ctrl+O</span>
+            </sp-menu-item>
+            <sp-menu-item value="record">
+              <sp-icon-microphone slot="icon"></sp-icon-microphone>
+              Record from microphone
+            </sp-menu-item>
+            <sp-menu-item value="demo">
+              <sp-icon-audio-wave slot="icon"></sp-icon-audio-wave>
+              Load the demo
+            </sp-menu-item>
+            <sp-menu-divider></sp-menu-divider>
+            <sp-menu-item value="export" data-action="export" disabled>
+              <sp-icon-export slot="icon"></sp-icon-export>
+              Export WAV…
+              <span slot="value">Ctrl+E</span>
+            </sp-menu-item>
+          </sp-action-menu>
 
-      <i class="sep"></i>
+          <sp-divider vertical size="s"></sp-divider>
 
-      <div class="segment" role="group" aria-label="Transport">
-        <button id="record" data-action="record" class="btn icon rec" title="Record from your microphone" aria-label="Record">
-          <svg viewBox="0 0 20 20" class="on-idle"><circle cx="10" cy="10" r="5" /></svg>
-          <svg viewBox="0 0 20 20" class="on-active"><rect x="5.5" y="5.5" width="9" height="9" rx="1.5" /></svg>
-        </button>
-        <button id="play" class="btn icon play" disabled title="Play / stop (Space)" aria-label="Play">
-          <svg viewBox="0 0 20 20" class="on-idle"><path d="M6.5 4.5l9 5.5-9 5.5z" /></svg>
-          <svg viewBox="0 0 20 20" class="on-active"><rect x="5.5" y="5.5" width="9" height="9" rx="1.5" /></svg>
-        </button>
-      </div>
+          <sp-action-group id="transport" compact size="s" label="Transport">
+            <sp-action-button id="record" data-action="record" label="Record">
+              <sp-icon-microphone slot="icon" class="when-idle"></sp-icon-microphone>
+              <sp-icon-stop slot="icon" class="when-active"></sp-icon-stop>
+              <sp-tooltip self-managed placement="bottom">Record from your microphone</sp-tooltip>
+            </sp-action-button>
+            <sp-action-button id="play" disabled label="Play">
+              <sp-icon-play slot="icon" class="when-idle"></sp-icon-play>
+              <sp-icon-stop slot="icon" class="when-active"></sp-icon-stop>
+              <sp-tooltip self-managed placement="bottom">Play / stop (Space)</sp-tooltip>
+            </sp-action-button>
+          </sp-action-group>
 
-      <output id="readout" class="readout" title="Time, and bar.beat">
-        <span id="rdTime">0:00.00</span><span id="rdBar">1.1</span>
-      </output>
+          <output id="readout" class="readout" title="Time, and bar.beat">
+            <span id="rdTime">0:00.00</span><span id="rdBar">1.1</span>
+          </output>
 
-      <label class="field bpm" title="Tempo. Sets the bars and beats grid, and what the Cut tool snaps to.">
-        <input id="bpm" type="number" min="30" max="300" step="1" value="120" inputmode="decimal" aria-label="Tempo in beats per minute" />
-        <span>BPM</span>
-      </label>
-
-      <button id="ab" class="btn toggle" disabled aria-pressed="false" title="Hear the original instead of the corrected audio (B)">Original</button>
-
-      <i class="sep"></i>
-
-      <div class="group" title="Notes snap to this key and scale">
-        <select id="key" class="field key" aria-label="Key"></select>
-        <select id="scale" class="field scale" aria-label="Scale"></select>
-      </div>
-
-      <div class="spacer"></div>
-
-      <div class="knobs">
-        <div id="knobCenter"></div>
-        <div id="knobVariation"></div>
-        <div id="knobTransition"></div>
-      </div>
-
-      <i class="sep"></i>
-
-      <div class="group">
-        <button id="undo" class="btn icon" disabled title="Undo (Ctrl+Z)" aria-label="Undo">
-          <svg viewBox="0 0 20 20" class="line"><path d="M7.5 4.5L3.5 8.5l4 4" /><path d="M3.5 8.5h8a4.5 4.5 0 010 9H9" /></svg>
-        </button>
-        <button id="redo" class="btn icon" disabled title="Redo (Ctrl+Shift+Z)" aria-label="Redo">
-          <svg viewBox="0 0 20 20" class="line"><path d="M12.5 4.5l4 4-4 4" /><path d="M16.5 8.5h-8a4.5 4.5 0 000 9H11" /></svg>
-        </button>
-        <button id="reset" class="btn text" disabled title="Reset all edits and controls">Reset</button>
-      </div>
-
-      <button id="export" class="btn primary" disabled title="Download the corrected audio as a WAV file (Ctrl+E)" data-action="export">Export</button>
-      <button id="help" class="btn icon" title="Help and shortcuts (?)" aria-label="Help">
-        <svg viewBox="0 0 20 20" class="line"><circle cx="10" cy="10" r="7" /><path d="M7.9 8a2.2 2.2 0 114 1c-.8.6-1.6 1-1.6 2" /><path d="M10.3 14.2h.01" /></svg>
-      </button>
-      <input id="file" type="file" accept="audio/*" hidden />
-    </header>
-
-    <div id="body">
-      <nav id="tools" aria-label="Tools">
-        <button id="selectTool" class="btn icon tool" aria-pressed="true" title="Select (V): drag notes up or down">
-          <svg viewBox="0 0 20 20" class="line"><path d="M5 3.5l10 5.5-4.2 1.2L9 14.5z" /></svg>
-        </button>
-        <button id="cut" class="btn icon tool" disabled aria-pressed="false" title="Cut (C): click a note to split it">
-          <svg viewBox="0 0 20 20" class="line"><circle cx="5.5" cy="5.5" r="2.2" /><circle cx="5.5" cy="14.5" r="2.2" /><path d="M16.5 3.5L7.2 12.8M12 12l4.5 4.5M7.2 7.2L10 10" /></svg>
-        </button>
-        <button id="curveTool" class="btn icon tool" disabled aria-pressed="false" title="Pitch line (P): drag the line up or down to bend it. Shift = fine, double-click = straighten.">
-          <svg viewBox="0 0 20 20" class="line"><path d="M2.5 12.5c1.6-6 3.2-6 5 0s3.4 6 5 0c1-3 2.5-4 5-4" /></svg>
-        </button>
-        <i class="rule"></i>
-        <button id="merge" class="btn icon" disabled title="Merge the selected note with its neighbour (G)">
-          <svg viewBox="0 0 20 20" class="line"><rect x="2.5" y="7" width="6" height="6" rx="1" /><rect x="11.5" y="7" width="6" height="6" rx="1" /><path d="M8.5 10h3" /></svg>
-        </button>
-        <button id="delete" class="btn icon" disabled title="Delete the selected note (Delete)">
-          <svg viewBox="0 0 20 20" class="line"><path d="M3.5 6h13M8 6V3.5h4V6M5.5 6l.8 10.5h7.4L14.5 6" /></svg>
-        </button>
-        <i class="rule"></i>
-        <button id="zoomIn" class="btn icon" title="Zoom in (+)">
-          <svg viewBox="0 0 20 20" class="line"><path d="M10 4.5v11M4.5 10h11" /></svg>
-        </button>
-        <button id="zoomOut" class="btn icon" title="Zoom out (-)">
-          <svg viewBox="0 0 20 20" class="line"><path d="M4.5 10h11" /></svg>
-        </button>
-        <button id="fit" class="btn icon" title="Fit the whole take (0)">
-          <svg viewBox="0 0 20 20" class="line"><path d="M3.5 7.5v-4h4M16.5 7.5v-4h-4M3.5 12.5v4h4M16.5 12.5v4h-4" /></svg>
-        </button>
-      </nav>
-
-      <main id="stage">
-        <canvas id="roll"></canvas>
-
-        <div id="toolOptions" hidden>
-          <label id="optBrush" hidden>
-            <span>Line width</span>
-            <input id="brush" type="range" min="30" max="400" value="120" />
-          </label>
-          <label id="optSnap" hidden>
-            <span>Snap cuts to</span>
-            <select id="snap" class="field">
-              <option value="0">Nothing</option>
-              <option value="1">Beat</option>
-              <option value="0.5">½ beat</option>
-              <option value="0.25">¼ beat</option>
-            </select>
-          </label>
-        </div>
-
-        <div id="hint">
-          <div class="empty">
-            <svg viewBox="0 0 48 24" class="empty-icon" aria-hidden="true"><path d="M2 12h4M10 6v12M16 2v20M22 8v8M28 4v16M34 9v6M40 11v2M44 12h2" /></svg>
-            <h2>Drop an audio file here</h2>
-            <p>A solo vocal works best: one voice, no backing track.</p>
-            <div class="row">
-              <button class="btn outline" data-action="open">Open a file</button>
-              <button class="btn outline" data-action="record">Record</button>
-              <button class="btn outline" data-action="demo">Try the demo</button>
-            </div>
+          <div class="bpm" title="Tempo. Sets the bars and beats grid, and what the Cut tool snaps to.">
+            <sp-number-field id="bpm" size="s" label="Tempo in beats per minute" hide-stepper min="30" max="300" step="1" value="120"></sp-number-field>
+            <span class="unit">BPM</span>
           </div>
+
+          <sp-action-button id="ab" size="s" toggles disabled class="original">
+            Original
+            <sp-tooltip self-managed placement="bottom">Hear the original instead of the corrected audio (B)</sp-tooltip>
+          </sp-action-button>
+
+          <sp-divider vertical size="s"></sp-divider>
+
+          <sp-picker id="key" size="s" label="Key" class="key" title="Key"></sp-picker>
+          <sp-picker id="scale" size="s" label="Scale" class="scale" title="Scale"></sp-picker>
+
+          <div class="spacer"></div>
+
+          <sp-action-group compact quiet size="s" label="History">
+            <sp-action-button id="undo" disabled label="Undo">
+              <sp-icon-undo slot="icon"></sp-icon-undo>
+              <sp-tooltip self-managed placement="bottom">Undo (Ctrl+Z)</sp-tooltip>
+            </sp-action-button>
+            <sp-action-button id="redo" disabled label="Redo">
+              <sp-icon-redo slot="icon"></sp-icon-redo>
+              <sp-tooltip self-managed placement="bottom">Redo (Ctrl+Shift+Z)</sp-tooltip>
+            </sp-action-button>
+          </sp-action-group>
+          <sp-action-button id="reset" size="s" quiet disabled class="reset">
+            Reset
+            <sp-tooltip self-managed placement="bottom">Reset all edits and controls</sp-tooltip>
+          </sp-action-button>
+
+          <sp-button id="export" data-action="export" variant="accent" size="s" disabled class="export">
+            Export
+            <sp-tooltip self-managed placement="bottom">Download the corrected audio as a WAV file (Ctrl+E)</sp-tooltip>
+          </sp-button>
+
+          <sp-action-button id="help" size="s" quiet label="Help">
+            <sp-icon-help slot="icon"></sp-icon-help>
+            <sp-tooltip self-managed placement="bottom">Help and shortcuts (?)</sp-tooltip>
+          </sp-action-button>
+        </header>
+
+        <div id="body">
+          <!-- ===== Tools ===== -->
+          <aside id="palette" aria-label="Tools">
+            <sp-action-group id="tools" vertical quiet selects="single" label="Tools">
+              <sp-action-button id="selectTool" value="select" selected label="Select">
+                <sp-icon-move-up-down slot="icon"></sp-icon-move-up-down>
+                <sp-tooltip self-managed placement="right">Select (V): drag notes up or down</sp-tooltip>
+              </sp-action-button>
+              <sp-action-button id="cut" value="cut" disabled label="Cut">
+                <sp-icon-cut slot="icon"></sp-icon-cut>
+                <sp-tooltip self-managed placement="right">Cut (C): click a note to split it</sp-tooltip>
+              </sp-action-button>
+              <sp-action-button id="curveTool" value="curve" disabled label="Pitch line">
+                <sp-icon-vector-draw slot="icon"></sp-icon-vector-draw>
+                <sp-tooltip self-managed placement="right">Pitch line (P): drag the line to bend it</sp-tooltip>
+              </sp-action-button>
+            </sp-action-group>
+
+            <sp-divider size="s"></sp-divider>
+
+            <sp-action-group vertical quiet label="Note actions">
+              <sp-action-button id="merge" disabled label="Merge">
+                <sp-icon-merge slot="icon"></sp-icon-merge>
+                <sp-tooltip self-managed placement="right">Merge the selected note with its neighbour (G)</sp-tooltip>
+              </sp-action-button>
+              <sp-action-button id="delete" disabled label="Delete">
+                <sp-icon-delete slot="icon"></sp-icon-delete>
+                <sp-tooltip self-managed placement="right">Delete the selected note (Delete)</sp-tooltip>
+              </sp-action-button>
+            </sp-action-group>
+
+            <sp-divider size="s"></sp-divider>
+
+            <sp-action-group vertical quiet label="View">
+              <sp-action-button id="zoomIn" label="Zoom in">
+                <sp-icon-zoom-in slot="icon"></sp-icon-zoom-in>
+                <sp-tooltip self-managed placement="right">Zoom in (+)</sp-tooltip>
+              </sp-action-button>
+              <sp-action-button id="zoomOut" label="Zoom out">
+                <sp-icon-zoom-out slot="icon"></sp-icon-zoom-out>
+                <sp-tooltip self-managed placement="right">Zoom out (-)</sp-tooltip>
+              </sp-action-button>
+              <sp-action-button id="fit" label="Fit">
+                <sp-icon-full-screen slot="icon"></sp-icon-full-screen>
+                <sp-tooltip self-managed placement="right">Fit the whole take (0)</sp-tooltip>
+              </sp-action-button>
+            </sp-action-group>
+          </aside>
+
+          <!-- ===== Piano roll ===== -->
+          <main id="stage">
+            <canvas id="roll"></canvas>
+
+            <div id="hint">
+              <sp-illustrated-message>
+                <svg viewBox="0 0 150 80" width="150" height="80" aria-hidden="true" class="empty-art">
+                  <path d="M6 40h8M24 24v32M38 8v64M52 28v24M66 16v48M80 32v16M94 36v8M108 40h8M122 40h22" />
+                </svg>
+                <h2 slot="heading">Drop an audio file here</h2>
+                <span slot="description">A solo vocal works best: one voice, no backing track.</span>
+              </sp-illustrated-message>
+              <div class="hint-actions">
+                <sp-button variant="secondary" treatment="outline" data-action="open">Open a file</sp-button>
+                <sp-button variant="secondary" treatment="outline" data-action="record">Record</sp-button>
+                <sp-button variant="secondary" treatment="outline" data-action="demo">Try the demo</sp-button>
+              </div>
+            </div>
+
+            <div id="busy" hidden>
+              <div class="busy-chip">
+                <sp-progress-circle indeterminate size="s" label="Working"></sp-progress-circle>
+                <span id="busyText">Analysing…</span>
+              </div>
+            </div>
+
+            <div id="toasts" role="region" aria-live="polite" aria-label="Notifications"></div>
+          </main>
+
+          <!-- ===== Properties ===== -->
+          <aside id="panel" aria-label="Properties">
+            <section>
+              <h3>Pitch correction</h3>
+              <sp-slider id="sCenter" label="Center" min="0" max="100" step="1" value="0" editable hide-stepper format-options='{"style":"unit","unit":"percent"}' title="Pull every note towards the nearest note of the scale"></sp-slider>
+              <sp-slider id="sVariation" label="Variation" min="0" max="100" step="1" value="0" editable hide-stepper format-options='{"style":"unit","unit":"percent"}' title="Smooth out the natural wobble inside each note (vibrato, drift)"></sp-slider>
+              <sp-slider id="sTransition" label="Transition" min="0" max="200" step="1" value="25" editable hide-stepper format-options='{"style":"unit","unit":"millisecond"}' title="How quickly pitch glides from one note to the next"></sp-slider>
+            </section>
+
+            <sp-divider size="s"></sp-divider>
+
+            <section>
+              <h3>Selected note</h3>
+              <p id="noteInfo" class="note-info">No note selected</p>
+              <div class="field-row">
+                <sp-field-label for="noteOffset" size="s">Offset</sp-field-label>
+                <sp-number-field id="noteOffset" size="s" min="-12" max="12" step="0.05" value="0" disabled format-options='{"minimumFractionDigits":2,"maximumFractionDigits":2,"signDisplay":"exceptZero"}' label="Pitch offset in semitones"></sp-number-field>
+                <span class="unit">st</span>
+              </div>
+              <sp-action-button id="noteReset" size="s" disabled class="note-reset">
+                Reset note
+                <sp-tooltip self-managed placement="left">Put the note back where it was sung (Backspace)</sp-tooltip>
+              </sp-action-button>
+            </section>
+
+            <sp-divider size="s"></sp-divider>
+
+            <section>
+              <h3>Tool options</h3>
+              <sp-slider id="sBrush" label="Line width" min="30" max="400" step="10" value="120" disabled editable hide-stepper format-options='{"style":"unit","unit":"millisecond"}' title="Pitch line tool: how wide a stretch of the line moves"></sp-slider>
+              <div class="field-row">
+                <sp-field-label for="snap" size="s">Snap cuts to</sp-field-label>
+                <sp-picker id="snap" size="s" label="Snap" value="0" disabled>
+                  <sp-menu-item value="0">Nothing</sp-menu-item>
+                  <sp-menu-item value="1">Beat</sp-menu-item>
+                  <sp-menu-item value="0.5">½ beat</sp-menu-item>
+                  <sp-menu-item value="0.25">¼ beat</sp-menu-item>
+                </sp-picker>
+              </div>
+            </section>
+          </aside>
         </div>
 
-        <div id="busy" hidden>
-          <div class="busy-chip"><div class="spinner"></div><span id="busyText">Analysing…</span></div>
-        </div>
+        <footer id="statusbar">
+          <span id="status" role="status"></span>
+          <span class="tip">Drag a note to change its pitch · <kbd>?</kbd> help</span>
+        </footer>
+      </div>
 
-        <aside id="helpPanel" hidden>
-          <button id="helpClose" class="btn icon" aria-label="Close help">
-            <svg viewBox="0 0 20 20" class="line"><path d="M5.5 5.5l9 9M14.5 5.5l-9 9" /></svg>
-          </button>
-          <h3>Getting started</h3>
-          <ol>
-            <li>Load a vocal from <b>File</b>, record with the red button, or try the demo.</li>
-            <li>Each sung note is an orange block. The line is the pitch that was sung.</li>
-            <li>Drag a note up or down to change its pitch. It snaps to the key and scale; hold <kbd>Alt</kbd> to go in between.</li>
-            <li>The knobs work on every note. <b>Center</b> pulls notes to the scale, <b>Variation</b> removes vibrato and wobble, <b>Transition</b> sets how fast pitch moves between notes. Drag a knob, <kbd>Shift</kbd> for fine, double-click to reset.</li>
-            <li><kbd>Space</kbd> plays. <b>Original</b> compares with the untouched audio. <b>Export</b> when you're happy.</li>
-          </ol>
-          <h3>Tools</h3>
-          <ul>
-            <li><b>Select</b> <kbd>V</kbd> moves notes.</li>
-            <li><b>Cut</b> <kbd>C</kbd> splits a note where you click. Choose what cuts snap to.</li>
-            <li><b>Pitch line</b> <kbd>P</kbd> bends the line itself, including glides between notes. <kbd>Shift</kbd> for fine, double-click to straighten.</li>
-            <li><b>Merge</b> <kbd>G</kbd> joins the selected note with its neighbour. <kbd>Delete</kbd> removes it.</li>
-          </ul>
-          <h3>Tempo</h3>
-          <p>The <b>BPM</b> box sets the bar and beat grid on the ruler. It doesn't change the speed of the audio.</p>
-          <h3>Shortcuts</h3>
-          <table>
-            <tr><td><kbd>Space</kbd></td><td>Play / stop</td></tr>
-            <tr><td><kbd>↑</kbd> <kbd>↓</kbd></td><td>Move the selected note one scale step</td></tr>
-            <tr><td><kbd>Backspace</kbd></td><td>Reset the selected note</td></tr>
-            <tr><td><kbd>Ctrl</kbd> <kbd>Z</kbd></td><td>Undo (add <kbd>Shift</kbd> to redo)</td></tr>
-            <tr><td><kbd>B</kbd></td><td>Original / corrected</td></tr>
-            <tr><td><kbd>Home</kbd></td><td>Playhead to the start</td></tr>
-            <tr><td><kbd>+</kbd> <kbd>−</kbd> <kbd>0</kbd></td><td>Zoom in / out / fit</td></tr>
-            <tr><td>Drag the ruler</td><td>Scrub, and hear the audio under it</td></tr>
-            <tr><td>Wheel</td><td>Scroll pitch; <kbd>Shift</kbd> time; <kbd>Ctrl</kbd> zoom</td></tr>
-          </table>
-        </aside>
-      </main>
-    </div>
+      <!-- ===== Help ===== -->
+      <sp-overlay id="helpOverlay" trigger="help@click" placement="bottom-end" type="auto">
+        <sp-popover id="helpPopover">
+          <sp-dialog id="helpDialog" size="m" dismissable no-divider>
+            <h2 slot="heading">Help</h2>
+            <div class="help">
+              <h3>Getting started</h3>
+              <ol>
+                <li>Load a vocal from <b>File</b>, record with the microphone button, or try the demo.</li>
+                <li>Each sung note is an orange block. The line is the pitch that was sung.</li>
+                <li>Drag a note up or down to change its pitch. It snaps to the key and scale; hold <kbd>Alt</kbd> to go in between.</li>
+                <li>The sliders on the right work on every note. <b>Center</b> pulls notes to the scale, <b>Variation</b> removes vibrato and wobble, <b>Transition</b> sets how fast pitch moves between notes.</li>
+                <li><kbd>Space</kbd> plays. <b>Original</b> compares with the untouched audio. <b>Export</b> when you're happy.</li>
+              </ol>
+              <h3>Tools</h3>
+              <ul>
+                <li><b>Select</b> <kbd>V</kbd> moves notes. Use <b>Selected note</b> on the right for an exact offset.</li>
+                <li><b>Cut</b> <kbd>C</kbd> splits a note where you click. Choose what cuts snap to.</li>
+                <li><b>Pitch line</b> <kbd>P</kbd> bends the line itself, including glides between notes. <kbd>Shift</kbd> for fine, double-click to straighten.</li>
+                <li><b>Merge</b> <kbd>G</kbd> joins the selected note with its neighbour. <kbd>Delete</kbd> removes it.</li>
+              </ul>
+              <h3>Tempo</h3>
+              <p>The <b>BPM</b> box sets the bar and beat grid on the ruler. It doesn't change the speed of the audio.</p>
+              <h3>Shortcuts</h3>
+              <table>
+                <tr><td><kbd>Space</kbd></td><td>Play / stop</td></tr>
+                <tr><td><kbd>↑</kbd> <kbd>↓</kbd></td><td>Move the selected note one scale step</td></tr>
+                <tr><td><kbd>Backspace</kbd></td><td>Reset the selected note</td></tr>
+                <tr><td><kbd>Ctrl</kbd> <kbd>Z</kbd></td><td>Undo (add <kbd>Shift</kbd> to redo)</td></tr>
+                <tr><td><kbd>B</kbd></td><td>Original / corrected</td></tr>
+                <tr><td><kbd>Home</kbd></td><td>Playhead to the start</td></tr>
+                <tr><td><kbd>+</kbd> <kbd>−</kbd> <kbd>0</kbd></td><td>Zoom in / out / fit</td></tr>
+                <tr><td>Drag the ruler</td><td>Scrub, and hear the audio under it</td></tr>
+                <tr><td>Wheel</td><td>Scroll pitch; <kbd>Shift</kbd> time; <kbd>Ctrl</kbd> zoom</td></tr>
+              </table>
+            </div>
+          </sp-dialog>
+        </sp-popover>
+      </sp-overlay>
+    </sp-theme>
 
-    <footer id="statusbar">
-      <span id="status" role="status"></span>
-      <span class="tip">Drag a note to change its pitch · <kbd>?</kbd> help</span>
-    </footer>
+    <input id="file" type="file" accept="audio/*" hidden />
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

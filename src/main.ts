@@ -1,6 +1,7 @@
+import './spectrum';
 import './style.css';
 import { PianoRoll, type Tool } from './ui/pianoroll';
-import { Knob } from './ui/knob';
+import { paletteFromTheme } from './ui/palette';
 import { barBeat, clampBpm, formatTime } from './dsp/grid';
 import { segment, notePitch, type Note } from './dsp/segment';
 import { psola } from './dsp/psola';
@@ -12,8 +13,16 @@ import { KEY_NAMES, SCALES, scaleMask, snapToScale, midiName, stepInScale } from
 import { autoShift, frameShifts, isNeutral, totalShift, type Params } from './dsp/render';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
-const btn = (id: string) => $<HTMLButtonElement>(id);
-const slider = (id: string) => $<HTMLInputElement>(id);
+/** Spectrum buttons, sliders and fields are custom elements; these are the bits of them used here. */
+type Control = HTMLElement & { disabled: boolean; selected: boolean; value: string | number };
+const btn = (id: string) => $<Control>(id);
+const field = (id: string) => $<Control>(id);
+const menuItem = (value: string, text: string) => {
+  const el = document.createElement('sp-menu-item');
+  el.setAttribute('value', value);
+  el.textContent = text;
+  return el;
+};
 
 const stage = $('stage');
 const fileInput = $<HTMLInputElement>('file');
@@ -56,10 +65,22 @@ function setStatus(s: string) {
 }
 
 /** Show a message for a few seconds, then go back to the normal status. */
-function flash(msg: string) {
+function flash(msg: string, problem = false) {
   setStatus(msg);
   window.clearTimeout(flashTimer);
   flashTimer = window.setTimeout(() => setStatus(baseStatus()), 4000);
+  if (problem) toast(msg);
+}
+
+/** A Spectrum toast, for things that went wrong and need to be noticed. */
+function toast(msg: string, variant: 'negative' | 'info' = 'negative') {
+  const t = document.createElement('sp-toast');
+  t.setAttribute('open', '');
+  t.setAttribute('variant', variant);
+  t.setAttribute('timeout', '6000');
+  t.textContent = msg;
+  t.addEventListener('close', () => t.remove());
+  $('toasts').append(t);
 }
 
 function setBusy(text: string | null) {
@@ -107,13 +128,14 @@ function redo() {
 
 function updateButtons() {
   const loaded = original !== null;
-  for (const id of ['play', 'ab', 'export', 'cut', 'curveTool', 'reset']) btn(id).disabled = !loaded;
-  document.querySelectorAll<HTMLButtonElement>('[data-action="export"]').forEach((b) => (b.disabled = !loaded));
+  for (const id of ['play', 'ab', 'cut', 'curveTool', 'reset']) btn(id).disabled = !loaded;
+  document.querySelectorAll<Control>('[data-action="export"]').forEach((b) => (b.disabled = !loaded));
   const sel = roll.selectedIndex;
   btn('merge').disabled = !loaded || notes.length < 2 || sel < 0;
   btn('delete').disabled = !loaded || sel < 0;
   btn('undo').disabled = undoStack.length === 0;
   btn('redo').disabled = redoStack.length === 0;
+  updateNotePanel();
 }
 
 // ---------- Loading & analysis ----------
@@ -128,7 +150,7 @@ async function loadFile(file: File) {
   } catch (err) {
     console.error(err);
     setBusy(null);
-    flash("Couldn't read that file. Try a WAV or MP3.");
+    flash("Couldn't read that file. Try a WAV or MP3.", true);
   }
 }
 
@@ -160,7 +182,7 @@ async function loadBuffer(buf: AudioBuffer) {
     console.error(err);
     setBusy(null);
     $('hint').hidden = original !== null;
-    flash('Analysis failed.');
+    flash('Analysis failed.', true);
     return;
   }
 
@@ -181,7 +203,10 @@ async function loadBuffer(buf: AudioBuffer) {
   setBusy(null);
   updateButtons();
   if (notes.length) setStatus(baseStatus());
-  else flash('No pitched notes found. A clean solo vocal works best.');
+  else {
+    flash('No pitched notes found. A clean solo vocal works best.');
+    toast('No pitched notes found. A clean solo vocal works best.', 'info');
+  }
 }
 
 // ---------- Rendering ----------
@@ -303,7 +328,7 @@ function setBypass(on: boolean) {
   const was = isPlaying();
   stop();
   bypass = on;
-  btn('ab').setAttribute('aria-pressed', String(on));
+  btn('ab').selected = on;
   if (was) play();
 }
 
@@ -376,21 +401,23 @@ requestAnimationFrame(tick);
 
 // ---------- Scale ----------
 
-const keySel = $<HTMLSelectElement>('key');
-const scaleSel = $<HTMLSelectElement>('scale');
-KEY_NAMES.forEach((name, i) => keySel.add(new Option(name, String(i))));
-Object.keys(SCALES).forEach((name) => scaleSel.add(new Option(name, name)));
+const keySel = field('key');
+const scaleSel = field('scale');
+KEY_NAMES.forEach((name, i) => keySel.append(menuItem(String(i), name)));
+Object.keys(SCALES).forEach((name) => scaleSel.append(menuItem(name, name)));
+keySel.value = '0';
+scaleSel.value = 'Chromatic';
 
 function updateScale() {
-  params.mask = scaleMask(Number(keySel.value), SCALES[scaleSel.value]);
+  params.mask = scaleMask(Number(keySel.value), SCALES[String(scaleSel.value)] ?? SCALES.Chromatic);
   keySel.disabled = scaleSel.value === 'Chromatic';
   roll.scale = params.mask;
   roll.snap = (p) => snapToScale(p, params.mask);
   refreshShifts();
   scheduleCommit();
 }
-keySel.onchange = updateScale;
-scaleSel.onchange = updateScale;
+keySel.addEventListener('change', updateScale);
+scaleSel.addEventListener('change', updateScale);
 
 roll.shiftOf = (n) => totalShift(n, params);
 roll.scale = params.mask;
@@ -399,67 +426,43 @@ keySel.disabled = true;
 
 // ---------- Controls (Center / Variation / Transition) ----------
 
-function onKnob() {
-  params.center = knobs.center.value / 100;
-  params.variation = knobs.variation.value / 100;
-  params.transitionMs = knobs.transition.value;
-  refreshShifts();
-  scheduleCommit();
+function syncParams() {
+  params.center = Number(field('sCenter').value) / 100;
+  params.variation = Number(field('sVariation').value) / 100;
+  params.transitionMs = Number(field('sTransition').value);
 }
 
-const knobs = {
-  center: new Knob($('knobCenter'), {
-    label: 'Center',
-    title: 'Pull every note towards the nearest note of the scale',
-    min: 0,
-    max: 100,
-    value: 0,
-    format: (v) => `${Math.round(v)}%`,
-    onInput: onKnob,
-  }),
-  variation: new Knob($('knobVariation'), {
-    label: 'Variation',
-    title: 'Smooth out the natural wobble inside each note (vibrato, drift)',
-    min: 0,
-    max: 100,
-    value: 0,
-    format: (v) => `${Math.round(v)}%`,
-    onInput: onKnob,
-  }),
-  transition: new Knob($('knobTransition'), {
-    label: 'Transition',
-    title: 'How quickly pitch glides from one note to the next',
-    min: 0,
-    max: 200,
-    value: 25,
-    format: (v) => `${Math.round(v)} ms`,
-    onInput: onKnob,
-  }),
-};
+for (const id of ['sCenter', 'sVariation', 'sTransition']) {
+  field(id).addEventListener('input', () => {
+    syncParams();
+    refreshShifts();
+    scheduleCommit();
+  });
+}
 
-/** Put the knobs back to their starting values (does not re-render by itself). */
+/** Put the sliders back to their starting values (does not re-render by itself). */
 function resetControls() {
-  for (const k of Object.values(knobs)) k.setQuiet(k.initial);
-  params.center = knobs.center.value / 100;
-  params.variation = knobs.variation.value / 100;
-  params.transitionMs = knobs.transition.value;
+  field('sCenter').value = 0;
+  field('sVariation').value = 0;
+  field('sTransition').value = 25;
+  syncParams();
 }
 
 // ---------- Tempo ----------
 
 let bpm = 120;
-const bpmInput = $<HTMLInputElement>('bpm');
-bpmInput.onchange = () => {
+const bpmInput = field('bpm');
+bpmInput.addEventListener('change', () => {
   bpm = clampBpm(Number(bpmInput.value));
-  bpmInput.value = String(bpm);
+  bpmInput.value = bpm;
   roll.bpm = bpm;
   roll.invalidate();
   updateSnap();
   setPlayhead(currentTime(), false);
-};
-$<HTMLSelectElement>('snap').onchange = () => updateSnap();
+});
+field('snap').addEventListener('change', () => updateSnap());
 function updateSnap() {
-  roll.snapStepSec = Number($<HTMLSelectElement>('snap').value) * (60 / bpm);
+  roll.snapStepSec = Number(field('snap').value) * (60 / bpm);
 }
 
 // ---------- Editing notes ----------
@@ -474,24 +477,51 @@ roll.onSelect = () => {
   setStatus(baseStatus());
 };
 
+/** The "Selected note" section: what the note was, where it is now, and an exact offset. */
+function updateNotePanel() {
+  const n = original ? notes[roll.selectedIndex] : undefined;
+  const offset = field('noteOffset');
+  field('noteReset').disabled = !n || n.shift === 0;
+  offset.disabled = !n;
+  if (!n) {
+    $('noteInfo').textContent = 'No note selected';
+    offset.value = 0;
+    return;
+  }
+  const to = n.pitch + totalShift(n, params);
+  $('noteInfo').textContent = midiName(n.pitch) === midiName(to) ? midiName(n.pitch) : `${midiName(n.pitch)} → ${midiName(to)}`;
+  offset.value = Math.round(n.shift * 100) / 100;
+}
+
+field('noteOffset').addEventListener('change', () => {
+  const n = notes[roll.selectedIndex];
+  const v = Number(field('noteOffset').value);
+  if (!n || !Number.isFinite(v) || Math.abs(v - n.shift) < 1e-6) return;
+  pushUndo();
+  n.shift = Math.max(-12, Math.min(12, v));
+  commit();
+});
+field('noteReset').addEventListener('click', () => resetSelected());
+
+const toolGroup = $<HTMLElement & { selected: string[] }>('tools');
+
 function setTool(tool: Tool) {
   roll.tool = tool;
-  btn('selectTool').setAttribute('aria-pressed', String(tool === 'select'));
-  btn('cut').setAttribute('aria-pressed', String(tool === 'cut'));
-  btn('curveTool').setAttribute('aria-pressed', String(tool === 'curve'));
-  // Options that belong to the active tool.
-  $('optBrush').hidden = tool !== 'curve';
-  $('optSnap').hidden = tool !== 'cut';
-  $('toolOptions').hidden = tool === 'select';
+  toolGroup.selected = [tool];
+  // Options for the other tools stay visible but disabled, so the panel never changes shape.
+  field('sBrush').disabled = tool !== 'curve';
+  field('snap').disabled = tool !== 'cut';
   roll.canvasCursor('default');
   roll.invalidate();
 }
+// A tool can't be switched off, only swapped for another.
+toolGroup.addEventListener('change', () => setTool((toolGroup.selected[0] as Tool | undefined) ?? roll.tool));
 
 roll.onCurveLive = refreshShifts;
-slider('brush').oninput = () => {
-  roll.brushSec = Number(slider('brush').value) / 1000;
+field('sBrush').addEventListener('input', () => {
+  roll.brushSec = Number(field('sBrush').value) / 1000;
   roll.invalidate();
-};
+});
 
 roll.onCut = (i, frame) => {
   if (!analysis) return;
@@ -571,7 +601,7 @@ async function toggleRecord() {
     return;
   }
   if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
-    flash("This browser can't record audio.");
+    flash("This browser can't record audio.", true);
     return;
   }
   let stream: MediaStream;
@@ -580,7 +610,7 @@ async function toggleRecord() {
       audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
     });
   } catch {
-    flash('Microphone blocked. Allow access in your browser and try again.');
+    flash('Microphone blocked. Allow access in your browser and try again.', true);
     return;
   }
   stop();
@@ -593,7 +623,8 @@ async function toggleRecord() {
     stream.getTracks().forEach((t) => t.stop());
     recorder = null;
     btn('record').title = 'Record from your microphone';
-    btn('record').classList.remove('recording');
+    btn('record').toggleAttribute('data-recording', false);
+    btn('record').selected = false;
     setBusy('Reading recording…');
     try {
       const buf = await audio().decodeAudioData(await new Blob(chunks, { type: rec.mimeType }).arrayBuffer());
@@ -602,12 +633,13 @@ async function toggleRecord() {
     } catch (err) {
       console.error(err);
       setBusy(null);
-      flash("Couldn't use that recording.");
+      flash("Couldn't use that recording.", true);
     }
   };
   rec.start();
   btn('record').title = 'Stop recording';
-  btn('record').classList.add('recording');
+  btn('record').toggleAttribute('data-recording', true);
+  btn('record').selected = true;
   const t0 = performance.now();
   setStatus('Recording… 0:00');
   recTimer = window.setInterval(() => {
@@ -634,15 +666,14 @@ const actions: Record<string, () => void> = {
   export: exportWav,
 };
 document.querySelectorAll<HTMLElement>('[data-action]').forEach((el) => {
-  el.addEventListener('click', () => {
-    actions[el.dataset.action!]();
-    fileMenu.open = false;
-  });
+  if (el.tagName !== 'SP-MENU-ITEM') el.addEventListener('click', () => actions[el.dataset.action!]());
 });
-// The File menu closes when you click anywhere else.
-const fileMenu = $<HTMLDetailsElement>('fileMenu');
-document.addEventListener('click', (e) => {
-  if (fileMenu.open && !fileMenu.contains(e.target as Node)) fileMenu.open = false;
+// The File menu: Spectrum's action menu reports the item that was chosen.
+const fileMenu = field('fileMenu');
+fileMenu.addEventListener('change', () => {
+  const choice = String(fileMenu.value);
+  fileMenu.value = '';
+  actions[choice]?.();
 });
 
 fileInput.onchange = () => {
@@ -656,9 +687,6 @@ btn('ab').onclick = () => {
   setBypass(!bypass);
   flash(bypass ? 'Playing the original' : 'Playing the corrected audio');
 };
-btn('selectTool').onclick = () => setTool('select');
-btn('cut').onclick = () => setTool(roll.tool === 'cut' ? 'select' : 'cut');
-btn('curveTool').onclick = () => setTool(roll.tool === 'curve' ? 'select' : 'curve');
 btn('merge').onclick = mergeSelected;
 btn('delete').onclick = deleteSelected;
 btn('undo').onclick = undo;
@@ -691,17 +719,21 @@ function exportWav() {
 
 // ---------- Help ----------
 
-const helpPanel = $('helpPanel');
-const toggleHelp = (show = helpPanel.hidden) => (helpPanel.hidden = !show);
-btn('help').onclick = () => toggleHelp();
-btn('helpClose').onclick = () => toggleHelp(false);
+const helpOverlay = $<HTMLElement & { open: boolean }>('helpOverlay');
+const toggleHelp = (show = !helpOverlay.open) => (helpOverlay.open = show);
+$('helpDialog').addEventListener('close', () => toggleHelp(false));
 
 // ---------- Keyboard ----------
 
 window.addEventListener('keydown', (e) => {
-  const t = e.target;
-  if (t instanceof HTMLInputElement && t.type !== 'range') return;
-  if (t instanceof HTMLSelectElement || t instanceof HTMLTextAreaElement) return;
+  // Keys typed into a field, slider, picker or menu belong to that control.
+  const path = e.composedPath();
+  const inControl = path.some(
+    (el) =>
+      el instanceof HTMLElement &&
+      /^(INPUT|TEXTAREA|SELECT|SP-NUMBER-FIELD|SP-SLIDER|SP-PICKER|SP-MENU|SP-MENU-ITEM|SP-ACTION-MENU|SP-TEXTFIELD)$/.test(el.tagName),
+  );
+  if (inControl && e.key !== 'Escape') return;
   const mod = e.ctrlKey || e.metaKey;
   const key = e.key.toLowerCase();
 
@@ -721,14 +753,13 @@ window.addEventListener('keydown', (e) => {
     return;
   } else if (e.code === 'Space') {
     // Let a focused button handle its own Space press.
-    if (t instanceof HTMLButtonElement) return;
+    if (path.some((el) => el instanceof HTMLElement && /^(BUTTON|SP-ACTION-BUTTON|SP-BUTTON)$/.test(el.tagName))) return;
     e.preventDefault();
     togglePlay();
   } else if (key === '?') {
     toggleHelp();
   } else if (key === 'escape') {
     toggleHelp(false);
-    fileMenu.open = false;
     setTool('select');
   } else if (!original) {
     return;
@@ -777,6 +808,14 @@ window.addEventListener('drop', (e) => {
   stage.classList.remove('drag');
   const f = e.dataTransfer?.files[0];
   if (f) void loadFile(f);
+});
+
+// The roll draws with Spectrum's colours: read them once the theme's styles are in place.
+void customElements.whenDefined('sp-theme').then(async () => {
+  const theme = $('theme') as HTMLElement & { updateComplete?: Promise<unknown> };
+  await theme.updateComplete;
+  roll.palette = paletteFromTheme(theme);
+  roll.invalidate();
 });
 
 updateButtons();

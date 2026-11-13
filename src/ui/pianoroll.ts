@@ -1,6 +1,7 @@
 import { hzToMidi, type Note } from '../dsp/segment';
 import { bendCurve, clearCurve } from '../dsp/curve';
 import { gridLines, snapToGrid } from '../dsp/grid';
+import { defaultPalette, type Palette } from './palette';
 
 const KEYW = 44;
 const RULER = 22;
@@ -20,6 +21,8 @@ export class PianoRoll {
   curve: Float32Array = new Float32Array(0);
   /** How wide a stretch of the line the Curve tool bends, in seconds. */
   brushSec = 0.12;
+  /** Colours, taken from the Spectrum theme. */
+  palette: Palette = defaultPalette;
   /** Tempo, for the bar and beat grid. */
   bpm = 120;
   /** Cuts snap to multiples of this many seconds; 0 = free. */
@@ -379,7 +382,8 @@ export class PianoRoll {
     const dpr = window.devicePixelRatio || 1;
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    g.fillStyle = '#22404f';
+    const P = this.palette;
+    g.fillStyle = P.bg;
     g.fillRect(0, 0, w, h);
 
     // Pitch rows: darker for black keys (or notes outside the scale).
@@ -390,10 +394,10 @@ export class PianoRoll {
       const y = this.yOf(p) - rowH / 2;
       const pc = ((p % 12) + 12) % 12;
       if (full ? BLACK[pc] : !this.scale[pc]) {
-        g.fillStyle = 'rgba(10,28,38,0.35)';
+        g.fillStyle = P.rowDark;
         g.fillRect(KEYW, y, w - KEYW, rowH);
       }
-      g.fillStyle = pc === 0 ? 'rgba(8,22,30,0.55)' : 'rgba(8,22,30,0.22)';
+      g.fillStyle = pc === 0 ? P.rowLineC : P.rowLine;
       g.fillRect(KEYW, Math.round(y + rowH) - 0.5, w - KEYW, 1);
     }
 
@@ -401,7 +405,7 @@ export class PianoRoll {
     const t1 = this.tOf(w);
     const lines = gridLines(this.tOf(KEYW), t1, this.bpm, this.pps);
     for (const l of lines) {
-      g.fillStyle = l.level === 0 ? 'rgba(8,22,30,0.75)' : l.level === 1 ? 'rgba(8,22,30,0.4)' : 'rgba(8,22,30,0.16)';
+      g.fillStyle = l.level === 0 ? P.grid0 : l.level === 1 ? P.grid1 : P.grid2;
       g.fillRect(Math.round(this.xOf(l.t)) - 0.5, RULER, 1, h - RULER);
     }
 
@@ -419,7 +423,7 @@ export class PianoRoll {
       const x1 = this.xOf(b * this.hopSec);
       if (x1 < KEYW || x0 > w || b - a < 2) return;
       const cy = this.yOf(n.pitch + this.shiftOf(n));
-      g.fillStyle = 'rgba(205,228,245,0.88)';
+      g.fillStyle = P.blob;
       g.beginPath();
       for (let f = a; f < b; f++) g.lineTo(this.xOf(f * this.hopSec), cy - this.env[f] * maxH);
       for (let f = b - 1; f >= a; f--) g.lineTo(this.xOf(f * this.hopSec), cy + this.env[f] * maxH);
@@ -513,15 +517,15 @@ export class PianoRoll {
 
     // Playhead: thin light line.
     const px = Math.round(this.xOf(this.playhead)) - 0.5;
-    g.fillStyle = 'rgba(225,235,240,0.85)';
+    g.fillStyle = P.playhead;
     g.fillRect(px, RULER, 1, h - RULER);
     g.restore();
 
     // Ruler.
-    g.fillStyle = '#11181d';
+    g.fillStyle = P.ruler;
     g.fillRect(0, 0, w, RULER);
-    g.fillStyle = '#8395a1';
-    g.font = '11px system-ui, sans-serif';
+    g.fillStyle = P.rulerText;
+    g.font = `11px ${P.font}`;
     g.textBaseline = 'middle';
     g.textAlign = 'left';
     for (const l of lines) {
@@ -533,7 +537,7 @@ export class PianoRoll {
     }
     const hx = this.xOf(this.playhead);
     if (hx >= KEYW) {
-      g.fillStyle = '#f59a3c';
+      g.fillStyle = P.marker;
       g.beginPath();
       g.moveTo(hx - 7, 2);
       g.lineTo(hx + 8, 2);
@@ -547,7 +551,7 @@ export class PianoRoll {
     g.beginPath();
     g.rect(0, RULER, KEYW, h - RULER);
     g.clip();
-    g.fillStyle = '#16262f';
+    g.fillStyle = P.gutter;
     g.fillRect(0, RULER, KEYW, h - RULER);
     g.textAlign = 'right';
     for (let p = pLo; p <= pHi; p++) {
@@ -557,27 +561,27 @@ export class PianoRoll {
       const inScale = this.scale[pc];
       if (black) {
         const kg = g.createLinearGradient(0, 0, KEYW, 0);
-        kg.addColorStop(0, '#2b3a43');
-        kg.addColorStop(1, '#0e171c');
-        g.fillStyle = inScale ? kg : '#18232a';
+        kg.addColorStop(0, P.keyBlack0);
+        kg.addColorStop(1, P.keyBlack1);
+        g.fillStyle = inScale ? kg : P.keyBlackOut;
         g.fillRect(0, y + 1, KEYW * 0.62, rowH - 2);
       } else {
         const kg = g.createLinearGradient(0, 0, KEYW, 0);
-        kg.addColorStop(0, inScale ? '#f4f7f8' : '#9aa5aa');
-        kg.addColorStop(1, inScale ? '#c9d2d6' : '#7d888d');
+        kg.addColorStop(0, inScale ? P.keyWhite0 : P.keyWhiteOut0);
+        kg.addColorStop(1, inScale ? P.keyWhite1 : P.keyWhiteOut1);
         g.fillStyle = kg;
         g.fillRect(0, y, KEYW, rowH);
-        g.fillStyle = '#7e8b91';
+        g.fillStyle = P.keyEdge;
         g.fillRect(0, Math.round(y + rowH) - 0.5, KEYW, 1);
       }
       if (pc === 0) {
-        g.fillStyle = '#5d6e76';
-        g.font = '11px system-ui, sans-serif';
+        g.fillStyle = P.keyLabel;
+        g.font = `11px ${P.font}`;
         g.fillText('C ' + (Math.floor(p / 12) - 1), KEYW - 5, y + rowH / 2);
       }
     }
     g.restore();
-    g.fillStyle = '#0b1920';
+    g.fillStyle = P.border;
     g.fillRect(KEYW - 0.5, 0, 1, h);
     g.fillRect(0, RULER - 0.5, w, 1);
   }
