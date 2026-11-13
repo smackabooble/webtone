@@ -128,16 +128,17 @@ function hmmNotes(f0: Float32Array): [number, number][] {
         best = fromZ;
         arg = Z;
       }
-      // Switching from a stable note j != k.
+      // Switching from a stable note at least a semitone away. A half-semitone move is
+      // just drift or vibrato, never a new note, so those sources are left out.
       let sw = -Infinity;
       let swArg = 0;
-      if (k > 0) {
-        sw = lenA[k - 1] - step;
-        swArg = argA[k - 1];
+      if (k > 1) {
+        sw = lenA[k - 2] - 2 * step;
+        swArg = argA[k - 2];
       }
-      if (k < K - 1 && lenR[k + 1] - step > sw) {
-        sw = lenR[k + 1] - step;
-        swArg = argR[k + 1];
+      if (k < K - 2 && lenR[k + 2] - 2 * step > sw) {
+        sw = lenR[k + 2] - 2 * step;
+        swArg = argR[k + 2];
       }
       sw += L.switchBase;
       if (sw > best) {

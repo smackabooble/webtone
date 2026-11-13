@@ -48,6 +48,9 @@ export function decimate(x: Float32Array, factor: number): Float32Array {
 // ---------------------------------------------------------------------------
 
 const BINS_PER_SEMITONE = 3;
+/** How readily a frame is called unvoiced, and how costly voiced/unvoiced switches are. */
+const U_SCALE = 0.02;
+const P_SWITCH = 0.03;
 const MIDI_LO = 33; // ~55 Hz
 const MIDI_HI = 90; // ~1.5 kHz
 const NBINS = (MIDI_HI - MIDI_LO) * BINS_PER_SEMITONE;
@@ -55,12 +58,14 @@ const binToMidi = (b: number) => MIDI_LO + b / BINS_PER_SEMITONE;
 const midiToBin = (m: number) => (m - MIDI_LO) * BINS_PER_SEMITONE;
 
 /** Cumulative weights of a Beta(2,12) prior over the YIN threshold 0.01..1.00. */
+/** Shape of the prior over the YIN threshold: Beta(2, BETA_B + 1). Higher = stricter about what counts as periodic. */
+const BETA_B = 11;
 const THRESH_CDF = (() => {
   const w: number[] = [];
   let sum = 0;
   for (let k = 0; k < 100; k++) {
     const s = (k + 0.5) / 100;
-    const v = s * Math.pow(1 - s, 11);
+    const v = s * Math.pow(1 - s, BETA_B);
     w.push(v);
     sum += v;
   }
@@ -156,6 +161,9 @@ export function cmndf(buf: Float32Array, W: number, tauMax: number, out: Float32
   }
 }
 
+/** Length of the YIN integration window in seconds. */
+const WIN_SEC = 0.020;
+
 export function detectPitch(
   x: Float32Array,
   sr: number,
@@ -163,7 +171,7 @@ export function detectPitch(
   fmax = 1500,
 ): PitchTrack {
   const hop = Math.max(1, Math.round(sr * 0.005));
-  const W = Math.floor(sr * 0.025);
+  const W = Math.floor(sr * WIN_SEC);
   const tauMax = Math.floor(sr / fmin);
   const tauMin = Math.max(2, Math.floor(sr / fmax));
   const frameLen = W + tauMax + 2;
@@ -215,7 +223,7 @@ export function viterbiPitch(cands: (Candidates | null)[]): Float32Array {
   const U = NBINS;
   const S = NBINS + 1;
   const REACH = 7;
-  const pSwitch = 0.03;
+  const pSwitch = P_SWITCH;
   // Pitch mostly stays in its bin from one 5 ms frame to the next; moving one or two
   // bins (a fast glide) is allowed but costs more the further it goes.
   const kernel = new Float64Array(REACH + 1);
@@ -244,7 +252,7 @@ export function viterbiPitch(cands: (Candidates | null)[]): Float32Array {
     } else {
       let voiced = 0;
       for (let i = 0; i < c.n; i++) voiced += c.prob[i];
-      obs[U] = Math.log(Math.max(0.05, 1 - voiced) * 0.8);
+      obs[U] = Math.log(Math.max(0.05, 1 - voiced) * U_SCALE);
       for (let b = 0; b < NBINS; b++) {
         let v = 1e-4;
         for (let i = 0; i < c.n; i++) {

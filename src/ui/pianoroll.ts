@@ -387,7 +387,7 @@ export class PianoRoll {
     const dragExtra = dragged ? this.notes[dragged.index].shift - dragged.startShift : 0;
     const fA = Math.max(0, Math.floor(this.tOf(KEYW) / this.hopSec) - 1);
     const fB = Math.min(this.f0.length, Math.ceil(t1 / this.hopSec) + 1);
-    const maxGap = Math.round(0.4 / this.hopSec);
+    const maxGap = Math.round(0.12 / this.hopSec);
     const path = new Path2D();
     let pen = false;
     let last = -Infinity;
