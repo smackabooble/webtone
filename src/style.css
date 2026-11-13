@@ -9,8 +9,8 @@ body {
 body {
   display: flex;
   flex-direction: column;
-  background: #15171c;
-  color: #d8dce4;
+  background: #14262f;
+  color: #d6e4ea;
   font: 13px/1.4 system-ui, sans-serif;
   overflow: hidden;
 }
@@ -19,13 +19,13 @@ body {
   align-items: center;
   gap: 6px;
   padding: 8px 10px;
-  background: #1d2027;
-  border-bottom: 1px solid #2c303a;
+  background: #1b2f3a;
+  border-bottom: 1px solid #0b1920;
   flex-wrap: wrap;
 }
 .logo {
   margin-right: 8px;
-  color: #5cb8ff;
+  color: #ffb02e;
   letter-spacing: 0.5px;
 }
 .sep {
