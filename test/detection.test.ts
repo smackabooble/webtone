@@ -104,3 +104,21 @@ describe('robustness', () => {
     expect(notes.length).toBeLessThanOrEqual(66);
   });
 });
+
+describe('pitches between the grid', () => {
+  // Real singers are rarely exactly in tune: every note is a bit sharp or flat. (Offsets keep
+  // legato steps at a semitone or more; two joined notes less than that apart can't be told apart.)
+  const offsets = [0.35, -0.3, -0.3, 0.3, 0.3, 0.3, -0.3, -0.3];
+  for (const seed of [5, 6, 7, 8]) {
+    it(`out-of-tune legato, seed ${seed}`, () => {
+      const notes = PHRASES.legato.map((n, i) => ({ ...n, midi: n.midi + offsets[i] }));
+      const ph = singPhrase(notes, SR, seed);
+      const a = analyze(ph.audio, SR);
+      const det = segment(a.f0, a.hopSec, a.db).map((x) => ({ start: x.start * a.hopSec, pitch: x.pitch }));
+      const sc = scoreNotes(ph.truth, det);
+      console.log(`seed ${seed}`, JSON.stringify(sc));
+      expect(sc.detected).toBe(8);
+      expect(sc.f1).toBeGreaterThanOrEqual(0.99);
+    });
+  }
+});

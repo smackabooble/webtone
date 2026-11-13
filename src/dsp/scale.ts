@@ -30,3 +30,16 @@ export function snapToScale(pitch: number, mask: boolean[]): number {
   }
   return best;
 }
+
+/** Note name for a MIDI pitch, e.g. 60 -> "C4". */
+export function midiName(m: number): string {
+  const r = Math.round(m);
+  return KEY_NAMES[((r % 12) + 12) % 12] + (Math.floor(r / 12) - 1);
+}
+
+/** The next note of the scale above (dir = 1) or below (dir = -1) a pitch. */
+export function stepInScale(pitch: number, dir: 1 | -1, mask: boolean[]): number {
+  let c = dir > 0 ? Math.floor(pitch + 1e-6) + 1 : Math.ceil(pitch - 1e-6) - 1;
+  for (let i = 0; i < 12 && !mask[((c % 12) + 12) % 12]; i++) c += dir;
+  return c;
+}

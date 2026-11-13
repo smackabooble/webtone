@@ -239,6 +239,61 @@ function splitAtDips(start: number, end: number, db: Float32Array, out: [number,
   out.push([start, end]);
 }
 
+/** Least-squares slope of the pitch over a stretch of frames, in semitones per second. */
+function pitchSlope(f0: Float32Array, start: number, end: number, hopSec: number): number {
+  let n = 0;
+  let sx = 0;
+  let sy = 0;
+  let sxy = 0;
+  let sxx = 0;
+  for (let i = start; i < end; i++) {
+    if (!(f0[i] > 0)) continue;
+    const x = (i - start) * hopSec;
+    const y = hzToMidi(f0[i]);
+    n++;
+    sx += x;
+    sy += y;
+    sxy += x * y;
+    sxx += x * x;
+  }
+  const d = n * sxx - sx * sx;
+  return n > 2 && d > 0 ? (n * sxy - sx * sy) / d : 0;
+}
+
+/**
+ * A short stretch that is still gliding towards the note next to it is a scoop into that
+ * note (or a fall off its end), not a note of its own. Fold it into the neighbour.
+ */
+function mergeScoops(spans: [number, number][], f0: Float32Array, hopSec: number): [number, number][] {
+  const MAX_FRAMES = Math.round(0.3 / hopSec);
+  const out: [number, number][] = [];
+  for (let i = 0; i < spans.length; i++) {
+    const [s, e] = spans[i];
+    if (e - s <= MAX_FRAMES) {
+      const here = notePitch(f0, s, e);
+      const slope = pitchSlope(f0, s, e, hopSec);
+      const next = spans[i + 1];
+      if (next && next[0] - e <= 3) {
+        const d = notePitch(f0, next[0], next[1]) - here;
+        if (Math.abs(d) < 1.5 && slope * Math.sign(d) > 2) {
+          spans[i + 1] = [s, next[1]];
+          continue;
+        }
+      }
+      const prev = out[out.length - 1];
+      if (prev && s - prev[1] <= 3) {
+        const d = notePitch(f0, prev[0], prev[1]) - here;
+        if (Math.abs(d) < 1.5 && slope * Math.sign(d) > 2) {
+          prev[1] = e;
+          continue;
+        }
+      }
+    }
+    out.push([s, e]);
+  }
+  return out;
+}
+
 /**
  * Turn a pitch track into notes.
  * @param f0 pitch per frame in Hz, 0 where unvoiced
@@ -270,6 +325,8 @@ export function segment(f0: Float32Array, hopSec: number, db?: Float32Array): No
     for (let i = s; i < e; i++) if (f0[i] > 0) voiced++;
     return voiced >= MIN_VOICED;
   });
+
+  spans = mergeScoops(spans, f0, hopSec);
 
   // Legato: when the pitch tracker loses a fast glide between two notes but the voice never
   // dips in level, the singer didn't stop. Let the new note begin where the last one ended.
