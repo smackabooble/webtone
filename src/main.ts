@@ -281,20 +281,48 @@ function setBypass(on: boolean) {
   if (was) play();
 }
 
-// Dragging the playhead pauses playback and resumes from the new spot on release.
+// Dragging the playhead pauses playback and plays the audio under it, like Newtone: short,
+// overlapping grains of the corrected audio are played from wherever the playhead is, so you
+// hear exactly what is there (at the right pitch) however fast you drag. Holding still is silent.
 let resumeAfterScrub = false;
+let scrubTimer = 0;
+let lastScrubMove = 0;
+const GRAIN_SEC = 0.1;
+const GRAIN_HOP_MS = 25;
+const grainWindow = Float32Array.from({ length: 64 }, (_, i) => 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / 63));
+
+function scrubGrain() {
+  const buf = current();
+  if (!buf || performance.now() - lastScrubMove > 150) return;
+  const a = audio();
+  const node = a.createBufferSource();
+  node.buffer = buf;
+  const gain = a.createGain();
+  gain.gain.value = 0;
+  // Four Hann-shaped grains overlap at any moment, which sum to twice unity.
+  const when = a.currentTime;
+  gain.gain.setValueCurveAtTime(grainWindow.map((v) => v * 0.5), when, GRAIN_SEC);
+  node.connect(gain).connect(a.destination);
+  node.start(when, Math.min(Math.max(0, playOffset), Math.max(0, buf.duration - 0.01)), GRAIN_SEC);
+}
 
 function scrubStart() {
   resumeAfterScrub = isPlaying();
   stop();
+  void audio().resume();
+  window.clearInterval(scrubTimer);
+  scrubTimer = window.setInterval(scrubGrain, GRAIN_HOP_MS);
+  lastScrubMove = performance.now();
 }
 
 function scrub(t: number) {
   playOffset = t;
+  lastScrubMove = performance.now();
   roll.setPlayhead(t, false);
 }
 
 function scrubEnd() {
+  window.clearInterval(scrubTimer);
   if (resumeAfterScrub) play();
   resumeAfterScrub = false;
 }
