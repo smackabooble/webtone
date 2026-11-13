@@ -20,7 +20,7 @@ Deployed with GitHub Pages: https://smackabooble.github.io/webtone/
 - Double-click a note to reset it.
 - Pick a **key** and **scale** to limit snapping to those notes; rows outside the scale are dimmed.
 - **Snap all** moves every note to the nearest note in the scale.
-- Click empty space to move the playhead. **Space** plays and stops.
+- Drag the ruler (or empty space) to scrub the playhead. **Space** plays and stops.
 - Mouse wheel scrolls pitch, **Shift + wheel** scrolls time, **Ctrl + wheel** zooms.
 - **Ctrl + Z** undoes.
 

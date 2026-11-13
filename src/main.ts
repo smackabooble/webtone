@@ -101,7 +101,7 @@ function render() {
   const shift = new Float32Array(f0.length);
   for (const n of notes) shift.fill(n.shift, n.start, n.end);
   const ratio = new Float32Array(f0.length);
-  const R = 2;
+  const R = 4; // ~20 ms glide at note edges
   for (let i = 0; i < f0.length; i++) {
     let s = 0;
     let c = 0;
@@ -165,12 +165,22 @@ function stop() {
   btn('play').textContent = 'Play';
 }
 
-function seek(t: number) {
-  const was = isPlaying();
+// Dragging the playhead pauses playback and resumes from the new spot on release.
+let resumeAfterScrub = false;
+
+function scrubStart() {
+  resumeAfterScrub = isPlaying();
   stop();
+}
+
+function scrub(t: number) {
   playOffset = t;
   roll.setPlayhead(t, false);
-  if (was) play();
+}
+
+function scrubEnd() {
+  if (resumeAfterScrub) play();
+  resumeAfterScrub = false;
 }
 
 function tick() {
@@ -224,7 +234,9 @@ updateScale();
 
 roll.onEditStart = pushUndo;
 roll.onEdit = commit;
-roll.onSeek = seek;
+roll.onSeekStart = scrubStart;
+roll.onSeek = scrub;
+roll.onSeekEnd = scrubEnd;
 
 // ---------- UI wiring ----------
 

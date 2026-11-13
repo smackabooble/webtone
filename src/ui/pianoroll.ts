@@ -22,7 +22,10 @@ export class PianoRoll {
   onEditStart: () => void = () => {};
   /** Called when an edit is finished. */
   onEdit: () => void = () => {};
+  /** Playhead scrubbing: called once on press, on every move, and once on release. */
+  onSeekStart: () => void = () => {};
   onSeek: (t: number) => void = () => {};
+  onSeekEnd: () => void = () => {};
 
   private g: CanvasRenderingContext2D;
   private w = 0;
@@ -33,6 +36,7 @@ export class PianoRoll {
   /** MIDI pitch at the top edge of the note area. */
   private top = 76;
   private selected = -1;
+  private scrubbing = false;
   private drag: { note: Note; y: number; target: number; moved: boolean } | null = null;
   private dirty = true;
 
@@ -159,15 +163,32 @@ export class PianoRoll {
       this.drag = { note, y, target: note.pitch + note.shift, moved: false };
       this.canvas.setPointerCapture(e.pointerId);
     } else if (x >= KEYW && this.duration > 0) {
-      this.onSeek(Math.max(0, Math.min(this.duration, this.tOf(x))));
+      // Empty space or the ruler: grab the playhead and drag it.
+      this.scrubbing = true;
+      this.canvas.setPointerCapture(e.pointerId);
+      this.onSeekStart();
+      this.scrub(x);
     }
     this.invalidate();
   }
 
+  private scrub(x: number) {
+    // Nudge the view along when the pointer runs past either edge.
+    if (x > this.w - 30) this.scrollX += (x - (this.w - 30)) * 0.6;
+    else if (x < KEYW + 30) this.scrollX -= (KEYW + 30 - x) * 0.6;
+    this.clampScroll();
+    this.onSeek(Math.max(0, Math.min(this.duration, this.tOf(x))));
+  }
+
   private onMove(e: PointerEvent) {
     const { x, y } = this.pos(e);
+    if (this.scrubbing) {
+      this.scrub(x);
+      return;
+    }
     if (!this.drag) {
-      this.canvas.style.cursor = this.hit(x, y) >= 0 ? 'ns-resize' : 'default';
+      this.canvas.style.cursor =
+        this.hit(x, y) >= 0 ? 'ns-resize' : y < RULER && x >= KEYW ? 'ew-resize' : 'default';
       return;
     }
     const d = this.drag;
@@ -186,6 +207,11 @@ export class PianoRoll {
   }
 
   private onUp(_e: PointerEvent) {
+    if (this.scrubbing) {
+      this.scrubbing = false;
+      this.onSeekEnd();
+      return;
+    }
     if (!this.drag) return;
     const moved = this.drag.moved;
     this.drag = null;

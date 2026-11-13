@@ -1,7 +1,8 @@
 /**
  * Place pitch marks one period apart through voiced audio (and at a fixed
- * spacing through unvoiced audio). Each step is nudged to the lag that best
- * matches the previous period, which absorbs small pitch-tracking errors.
+ * spacing through unvoiced audio). Each voiced mark is snapped to the waveform
+ * peak nearest the predicted spot, so marks sit on the glottal pulses. That is
+ * what lets grains overlap cleanly when the pitch is moved.
  */
 export function findMarks(
   x: Float32Array,
@@ -10,43 +11,54 @@ export function findMarks(
   hopSec: number,
 ): Int32Array {
   const n = x.length;
-  const marks: number[] = [];
   const unvoicedStep = Math.max(1, Math.round(sr * 0.005));
   const framesPerSample = 1 / (sr * hopSec);
-  let t = 0;
+  const freqAt = (t: number) => {
+    const f = Math.min(f0.length - 1, Math.round(t * framesPerSample));
+    return f >= 0 ? f0[f] : 0;
+  };
 
+  // Which sign carries the stronger peaks? Marks follow that one consistently.
+  let pos = 0;
+  let neg = 0;
+  for (let i = 0; i < f0.length; i++) {
+    if (!(f0[i] > 0)) continue;
+    const t0 = Math.round(i / framesPerSample);
+    const T = Math.round(sr / f0[i]);
+    let hi = 0;
+    let lo = 0;
+    for (let k = t0; k < Math.min(n, t0 + T); k++) {
+      if (x[k] > hi) hi = x[k];
+      if (x[k] < lo) lo = x[k];
+    }
+    pos += hi;
+    neg -= lo;
+  }
+  const pol = pos >= neg ? 1 : -1;
+
+  const marks: number[] = [];
+  let t = 0;
   while (t < n) {
     marks.push(t);
-    const frame = Math.min(f0.length - 1, Math.round(t * framesPerSample));
-    const f = frame >= 0 ? f0[frame] : 0;
+    const f = freqAt(t);
     if (!(f > 0)) {
       t += unvoicedStep;
       continue;
     }
     const T = sr / f;
-    const next = Math.round(t + T);
-    const w = Math.round(T);
-    const range = Math.max(1, Math.round(T * 0.1));
-    let bestD = 0;
-    if (next + range + w < n) {
-      let best = -Infinity;
-      for (let d = -range; d <= range; d++) {
-        let corr = 0;
-        let energy = 1e-12;
-        const o = next + d;
-        for (let k = 0; k < w; k++) {
-          const v = x[o + k];
-          corr += x[t + k] * v;
-          energy += v * v;
-        }
-        const score = corr / Math.sqrt(energy);
-        if (score > best) {
-          best = score;
-          bestD = d;
-        }
+    const pred = Math.round(t + T);
+    const range = Math.max(1, Math.round(T * 0.25));
+    let best = -Infinity;
+    let bt = pred;
+    for (let k = pred - range; k <= pred + range; k++) {
+      if (k <= t || k >= n - 1) continue;
+      const v = pol * (x[k - 1] + 2 * x[k] + x[k + 1]);
+      if (v > best) {
+        best = v;
+        bt = k;
       }
     }
-    t = Math.max(t + 1, next + bestD);
+    t = Math.max(t + 1, bt);
   }
   return Int32Array.from(marks);
 }
@@ -100,7 +112,8 @@ export function psola(
     ts += R / (r > 0 ? r : 1);
   }
 
-  // Denser grains (pitch up) would get louder; bring them back to unity.
-  for (let j = 0; j < n; j++) if (norm[j] > 1) out[j] /= norm[j];
+  // Grains overlap more (pitch up) or less (pitch down) than the source did, so
+  // the window sum drifts away from 1. Divide it out to keep the level steady.
+  for (let j = 0; j < n; j++) if (norm[j] > 1e-3) out[j] /= norm[j];
   return out;
 }
