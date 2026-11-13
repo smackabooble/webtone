@@ -105,7 +105,24 @@ export class PianoRoll {
     this.invalidate();
   }
 
+  /** Seconds between frames, and the length of the take, before any time stretching. */
+  private srcHop = 0.005;
+  private srcDuration = 0;
+
+  /**
+   * Stretch the time axis: output seconds per source second (1 / playback speed). Notes, pitch
+   * curve and frames are unchanged; they just sit further apart or closer together.
+   */
+  setTimeScale(scale: number) {
+    this.hopSec = this.srcHop * scale;
+    this.duration = this.srcDuration * scale;
+    this.clampScroll();
+    this.invalidate();
+  }
+
   setData(notes: Note[], f0: Float32Array, env: Float32Array, hopSec: number, duration: number) {
+    this.srcHop = hopSec;
+    this.srcDuration = duration;
     this.f0 = f0;
     this.env = env;
     this.hopSec = hopSec;

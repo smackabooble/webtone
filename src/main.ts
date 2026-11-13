@@ -2,7 +2,7 @@ import './spectrum';
 import './style.css';
 import { PianoRoll, type Tool } from './ui/pianoroll';
 import { paletteFromTheme } from './ui/palette';
-import { barBeat, clampBpm, formatTime } from './dsp/grid';
+import { MAX_BPM, MIN_BPM, barBeat, clampBpm, formatTime } from './dsp/grid';
 import { segment, notePitch, type Note } from './dsp/segment';
 import { psola } from './dsp/psola';
 import type { Analysis } from './dsp/analyze';
@@ -37,6 +37,10 @@ let analysis: Analysis | null = null;
 let notes: Note[] = [];
 let fileName = 'webtone';
 let bypass = false;
+/** Tempo you hear (the BPM box), tempo the recording was made at, and the playback speed between them. */
+let bpm = 120;
+let recordedBpm = 120;
+let speed = 1;
 /** Hand edits to the pitch line, in semitones per analysis frame. */
 let curve = new Float32Array(0);
 
@@ -199,6 +203,9 @@ async function loadBuffer(buf: AudioBuffer) {
   curve = new Float32Array(result.f0.length);
   roll.curve = curve;
   roll.setData(notes, result.f0, result.env, result.hopSec, buf.duration);
+  recordedBpm = bpm;
+  recordedInput.value = recordedBpm;
+  setTempo(bpm);
   refreshShifts();
   setBusy(null);
   updateButtons();
@@ -218,32 +225,49 @@ function refreshShifts() {
   roll.invalidate();
 }
 
+/** Run the original through PSOLA with a pitch ratio per source sample and a playback speed. */
+function process(ratioAt: (sample: number) => number): AudioBuffer {
+  const src = original!;
+  const marks = analysis!.marks;
+  let out: AudioBuffer | null = null;
+  for (let c = 0; c < src.numberOfChannels; c++) {
+    const data = psola(src.getChannelData(c), marks, ratioAt, speed);
+    out ??= audio().createBuffer(src.numberOfChannels, data.length, src.sampleRate);
+    out.copyToChannel(data, c);
+  }
+  return out!;
+}
+
 function render() {
   if (!original || !analysis) return;
-  if (isNeutral(notes, params, curve)) {
+  if (speed === 1 && isNeutral(notes, params, curve)) {
     rendered = original;
     return;
   }
-  const { f0, hopSec, marks } = analysis;
-  const sr = original.sampleRate;
+  const { f0, hopSec } = analysis;
   const shifts = frameShifts(notes, f0, hopSec, params, curve);
   const ratio = new Float32Array(shifts.length);
   for (let i = 0; i < ratio.length; i++) ratio[i] = Math.pow(2, shifts[i] / 12);
-  const framesPerSample = 1 / (sr * hopSec);
+  const framesPerSample = 1 / (original.sampleRate * hopSec);
   const last = ratio.length - 1;
-  const ratioAt = (sample: number) => ratio[Math.min(last, Math.round(sample * framesPerSample))];
+  rendered = process((sample) => ratio[Math.min(last, Math.round(sample * framesPerSample))]);
+}
 
-  const out = audio().createBuffer(original.numberOfChannels, original.length, sr);
-  for (let c = 0; c < original.numberOfChannels; c++) {
-    out.copyToChannel(psola(original.getChannelData(c), marks, ratioAt), c);
-  }
-  rendered = out;
+/** The untouched audio, at the current tempo, for the Original button. */
+let bypassCache: { speed: number; buf: AudioBuffer } | null = null;
+function stretchedOriginal(): AudioBuffer | null {
+  if (!original || !analysis) return null;
+  if (speed === 1) return original;
+  if (bypassCache?.speed !== speed) bypassCache = { speed, buf: process(() => 1) };
+  return bypassCache.buf;
 }
 
 /** Apply an edit: refresh the curve, rebuild the audio, and keep playing if it was playing. */
+let resumeAfterRender = false;
 function commit() {
   refreshShifts();
-  const was = isPlaying();
+  const was = isPlaying() || resumeAfterRender;
+  resumeAfterRender = false;
   stop();
   render();
   updateButtons();
@@ -265,7 +289,7 @@ let playStartedAt = 0;
 let playOffset = 0;
 
 const isPlaying = () => source !== null;
-const current = () => (bypass ? original : rendered);
+const current = () => (bypass ? stretchedOriginal() : rendered);
 
 function currentTime() {
   const buf = current();
@@ -343,7 +367,8 @@ const hann = hannCurve();
 /** Length of one pitch period in the (corrected) audio at a position, or 0 if unvoiced. */
 function periodAt(pos: number): number {
   if (!analysis) return 0;
-  const f = Math.min(analysis.f0.length - 1, Math.max(0, Math.round(pos / analysis.hopSec)));
+  // `pos` is in output time; analysis frames are in source time.
+  const f = Math.min(analysis.f0.length - 1, Math.max(0, Math.round((pos * speed) / analysis.hopSec)));
   const hz = analysis.f0[f];
   if (!(hz > 0)) return 0;
   const shift = bypass ? 0 : (roll.frameShift?.[f] ?? 0);
@@ -450,15 +475,55 @@ function resetControls() {
 
 // ---------- Tempo ----------
 
-let bpm = 120;
 const bpmInput = field('bpm');
-bpmInput.addEventListener('change', () => {
-  bpm = clampBpm(Number(bpmInput.value));
+const recordedInput = field('srcBpm');
+const MAX_STRETCH = 2;
+
+/**
+ * The BPM box is the tempo you hear. The recording has its own tempo ("Recorded at"), and the
+ * audio is time-stretched by the ratio between the two, without changing pitch.
+ * Returns true if the speed changed.
+ */
+function setTempo(wanted: number): boolean {
+  const lo = Math.max(MIN_BPM, recordedBpm / MAX_STRETCH);
+  const hi = Math.min(MAX_BPM, recordedBpm * MAX_STRETCH);
+  const next = Math.min(hi, Math.max(lo, clampBpm(wanted)));
+  if (Math.abs(next - clampBpm(wanted)) > 1e-9) flash('The audio can be sped up or slowed down by up to 2×.');
+  const before = speed;
+  bpm = next;
+  speed = bpm / recordedBpm;
   bpmInput.value = bpm;
+  Object.assign(bpmInput, { min: Math.ceil(lo), max: Math.floor(hi) });
   roll.bpm = bpm;
-  roll.invalidate();
+  roll.setTimeScale(1 / speed);
   updateSnap();
-  setPlayhead(currentTime(), false);
+  // Keep the playhead on the same spot in the music.
+  playOffset = (playOffset * before) / speed;
+  bypassCache = null;
+  $('speedInfo').textContent = `Playing at ${Math.round(speed * 100)}% speed`;
+  return Math.abs(speed - before) > 1e-9;
+}
+
+/** Re-render after a tempo change, and carry on playing if it was playing. */
+function tempoChanged(wasPlaying: boolean, changed: boolean) {
+  setPlayhead(playOffset, false);
+  if (changed) {
+    resumeAfterRender = wasPlaying;
+    scheduleCommit();
+  } else if (wasPlaying) play();
+}
+
+bpmInput.addEventListener('change', () => {
+  const was = isPlaying();
+  stop();
+  tempoChanged(was, setTempo(Number(bpmInput.value)));
+});
+recordedInput.addEventListener('change', () => {
+  const was = isPlaying();
+  stop();
+  recordedBpm = clampBpm(Number(recordedInput.value));
+  recordedInput.value = recordedBpm;
+  tempoChanged(was, setTempo(bpm));
 });
 field('snap').addEventListener('change', () => updateSnap());
 function updateSnap() {
@@ -696,6 +761,11 @@ btn('reset').onclick = () => {
   for (const n of notes) n.shift = 0;
   curve.fill(0);
   resetControls();
+  const was = isPlaying();
+  stop();
+  setTempo(recordedBpm);
+  setPlayhead(playOffset, false);
+  resumeAfterRender = was;
   commit();
 };
 btn('zoomIn').onclick = () => roll.zoom(1.4);
@@ -733,9 +803,10 @@ window.addEventListener('keydown', (e) => {
       el instanceof HTMLElement &&
       /^(INPUT|TEXTAREA|SELECT|SP-NUMBER-FIELD|SP-SLIDER|SP-PICKER|SP-MENU|SP-MENU-ITEM|SP-ACTION-MENU|SP-TEXTFIELD)$/.test(el.tagName),
   );
-  if (inControl && e.key !== 'Escape') return;
   const mod = e.ctrlKey || e.metaKey;
   const key = e.key.toLowerCase();
+  // Open and export work from anywhere; Undo and the rest stay with the field being edited.
+  if (inControl && e.key !== 'Escape' && !(mod && (key === 'o' || key === 'e'))) return;
 
   if (mod && key === 'z') {
     e.preventDefault();
@@ -824,7 +895,7 @@ function styleInside(host: HTMLElement | null | undefined, css: string) {
 void (async () => {
   await Promise.all(['sp-number-field', 'sp-slider', 'sp-action-menu'].map((n) => customElements.whenDefined(n)));
   const centre = 'input.input { text-align: center; padding-block: 6px 7px; }';
-  const fields = [$('bpm'), $('noteOffset')];
+  const fields = [$('bpm'), $('srcBpm'), $('noteOffset')];
   for (const f of fields) {
     await (f as HTMLElement & { updateComplete?: Promise<unknown> }).updateComplete;
     styleInside(f, centre);
@@ -836,6 +907,11 @@ void (async () => {
     await inner?.updateComplete;
     styleInside(inner, centre);
   }
+  // Spectrum's solid button pads its label by 3px above and 2px below, tuned for Adobe's own
+  // font. Level it so the text sits in the middle of the button whatever font is used.
+  const exportBtn = $('export') as HTMLElement & { updateComplete?: Promise<unknown> };
+  await exportBtn.updateComplete;
+  styleInside(exportBtn, '#label { padding: 0; line-height: 20px; }');
   const menu = $('fileMenu') as HTMLElement & { updateComplete?: Promise<unknown> };
   await menu.updateComplete;
   styleInside(menu, 'sp-icon-more { display: none; } #button { width: 100%; }');

@@ -242,7 +242,7 @@ sp-theme {
   display: flex;
   flex-direction: column;
   gap: var(--spectrum-spacing-200);
-  padding: var(--spectrum-spacing-300) 0;
+  padding: var(--spectrum-spacing-200) 0;
 }
 #panel section:first-child {
   padding-top: 0;
@@ -266,6 +266,11 @@ sp-theme {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+#speedInfo {
+  height: auto;
+  color: var(--spectrum-gray-700);
+  font-size: var(--spectrum-font-size-75);
 }
 .field-row {
   display: flex;

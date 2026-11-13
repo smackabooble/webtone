@@ -65,7 +65,8 @@ export function findMarks(
 
 /**
  * TD-PSOLA pitch shift. Two-period grains centred on the analysis marks are
- * overlap-added at a new spacing (period / ratio). Duration is unchanged.
+ * overlap-added at a new spacing (period / ratio). Duration is unchanged unless `speed` is given,
+ * which stretches or squeezes time without touching pitch.
  * `ratioAt(sample)` gives the pitch ratio at a source position; where it is 1
  * the output is an exact copy of the input.
  */
@@ -73,17 +74,27 @@ export function psola(
   x: Float32Array,
   marks: Int32Array,
   ratioAt: (sample: number) => number,
+  speed = 1,
 ): Float32Array<ArrayBuffer> {
   const n = x.length;
-  const out = new Float32Array(n);
-  const norm = new Float32Array(n);
+  // speed > 1 plays faster (shorter); speed < 1 slower (longer). Pitch is not affected by it.
+  const nOut = Math.max(1, Math.round(n / speed));
+  const out = new Float32Array(nOut);
+  const norm = new Float32Array(nOut);
   const M = marks.length;
-  if (M < 2) return x.slice();
+  if (M < 2) {
+    if (speed === 1) return x.slice();
+    for (let j = 0; j < nOut; j++) out[j] = x[Math.min(n - 1, Math.round(j * speed))];
+    return out;
+  }
 
   let i = 0;
-  let ts = marks[0];
-  while (ts < n) {
-    while (i + 1 < M && Math.abs(marks[i + 1] - ts) <= Math.abs(marks[i] - ts)) i++;
+  let ts = marks[0] / speed; // where the next grain goes in the output
+  while (ts < nOut) {
+    // Which source grain belongs at this output time: the mark nearest the matching source time.
+    // Faster playback skips some grains, slower playback uses some twice; spacing is unchanged.
+    const src = ts * speed;
+    while (i + 1 < M && Math.abs(marks[i + 1] - src) <= Math.abs(marks[i] - src)) i++;
     const m = marks[i];
     const L = i > 0 ? m - marks[i - 1] : marks[1] - marks[0];
     const isLast = i + 1 >= M;
@@ -93,18 +104,18 @@ export function psola(
 
     for (let k = -L + 1; k < 0; k++) {
       const dst = c + k;
-      const src = m + k;
-      if (dst < 0 || dst >= n || src < 0) continue;
+      const from = m + k;
+      if (dst < 0 || dst >= nOut || from < 0) continue;
       const w = 0.5 * (1 + Math.cos((Math.PI * k) / L));
-      out[dst] += w * x[src];
+      out[dst] += w * x[from];
       norm[dst] += w;
     }
     for (let k = 0; k < R; k++) {
       const dst = c + k;
-      const src = m + k;
-      if (dst < 0 || dst >= n || src >= n) continue;
+      const from = m + k;
+      if (dst < 0 || dst >= nOut || from >= n) continue;
       const w = isLast ? 1 : 0.5 * (1 + Math.cos((Math.PI * k) / R));
-      out[dst] += w * x[src];
+      out[dst] += w * x[from];
       norm[dst] += w;
     }
 
@@ -114,6 +125,6 @@ export function psola(
 
   // Grains overlap more (pitch up) or less (pitch down) than the source did, so
   // the window sum drifts away from 1. Divide it out to keep the level steady.
-  for (let j = 0; j < n; j++) if (norm[j] > 1e-3) out[j] /= norm[j];
+  for (let j = 0; j < nOut; j++) if (norm[j] > 1e-3) out[j] /= norm[j];
   return out;
 }

@@ -55,7 +55,7 @@
             <span id="rdTime">0:00.00</span><span id="rdBar">1.1</span>
           </output>
 
-          <div class="bpm" title="Tempo. Sets the bars and beats grid, and what the Cut tool snaps to.">
+          <div class="bpm" title="Tempo. The audio is time-stretched to match it (pitch stays the same), and the ruler follows it.">
             <sp-number-field id="bpm" size="s" label="Tempo in beats per minute" hide-stepper min="30" max="300" step="1" value="120"></sp-number-field>
             <span class="unit">BPM</span>
           </div>
@@ -188,6 +188,18 @@
             <sp-divider size="s"></sp-divider>
 
             <section>
+              <h3>Tempo</h3>
+              <div class="field-row">
+                <sp-field-label for="srcBpm" size="s">Recorded at</sp-field-label>
+                <sp-number-field id="srcBpm" size="s" hide-stepper min="30" max="300" step="1" value="120" label="Tempo the recording was made at"></sp-number-field>
+                <span class="unit">BPM</span>
+              </div>
+              <p id="speedInfo" class="note-info">Playing at 100% speed</p>
+            </section>
+
+            <sp-divider size="s"></sp-divider>
+
+            <section>
               <h3>Selected note</h3>
               <p id="noteInfo" class="note-info">No note selected</p>
               <div class="field-row">
@@ -247,7 +259,7 @@
                 <li><b>Merge</b> <kbd>G</kbd> joins the selected note with its neighbour. <kbd>Delete</kbd> removes it.</li>
               </ul>
               <h3>Tempo</h3>
-              <p>The <b>BPM</b> box sets the bar and beat grid on the ruler. It doesn't change the speed of the audio.</p>
+              <p>The <b>BPM</b> box is the tempo you hear. Say what tempo the recording was made at under <b>Recorded at</b>, then change BPM to speed the audio up or slow it down by up to 2×, without changing its pitch. The ruler's bars and beats follow it, and cuts can snap to the beat.</p>
               <h3>Shortcuts</h3>
               <table>
                 <tr><td><kbd>Space</kbd></td><td>Play / stop</td></tr>

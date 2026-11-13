@@ -27,7 +27,7 @@ Deployed with GitHub Pages: https://smackabooble.github.io/webtone/
 
 Tools (left side): **Select** (`V`), **Cut** (`C`, click a note to split it, with optional snapping to the beat), **Pitch line** (`P`, bend the line itself, including the glides between notes; **Shift** for fine adjustment, double-click to straighten), **Merge** (`G`) and **Delete**.
 
-Tempo: the **BPM** box sets the bar and beat grid on the ruler and what cuts snap to. It does not change the speed of the audio.
+Tempo: the **BPM** box is the tempo you hear. Under **Recorded at**, say what tempo the recording was made at, then change BPM to speed the audio up or slow it down (up to 2×) without changing its pitch. The ruler's bars and beats follow it, and cuts can snap to the beat. **Original** plays the untouched audio at the same tempo.
 
 Other controls: wheel scrolls pitch, **Shift** + wheel scrolls time, **Ctrl** + wheel zooms (or use the zoom buttons, `+`, `-`, `0`); arrow keys move the selected note one scale step; **Backspace** resets a note; **Ctrl+Z** / **Ctrl+Shift+Z** undo and redo; **Ctrl+O** opens, **Ctrl+E** exports; **?** shows help.
 
