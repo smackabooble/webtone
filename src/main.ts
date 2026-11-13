@@ -5,12 +5,14 @@ import { paletteFromTheme } from './ui/palette';
 import { MAX_BPM, MIN_BPM, barBeat, clampBpm, formatTime } from './dsp/grid';
 import { segment, notePitch, type Note } from './dsp/segment';
 import { shiftPitch } from './dsp/shift';
+import { parseMidi, type MidiFile } from './dsp/midi';
+import { alignOffset, assignTargets, bestTrack, octaveFor, splitPoints, toMelody, type ChordMode, type Span } from './dsp/follow';
 import type { Analysis } from './dsp/analyze';
 import { encodeWav } from './audio/wav';
 import { makeDemo } from './audio/demo';
 import { GRAIN_SEC, grainGain, grainHop, hannCurve } from './audio/scrub';
 import { KEY_NAMES, SCALES, scaleMask, snapToScale, midiName, stepInScale } from './dsp/scale';
-import { autoShift, frameShifts, isNeutral, totalShift, type Params } from './dsp/render';
+import { frameShifts, isNeutral, totalShift, type Params } from './dsp/render';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 /** Spectrum buttons, sliders and fields are custom elements; these are the bits of them used here. */
@@ -206,6 +208,11 @@ async function loadBuffer(buf: AudioBuffer) {
   recordedBpm = bpm;
   recordedInput.value = recordedBpm;
   setTempo(bpm);
+  if (midi) {
+    alignMidi();
+    applyMidi({ undo: false });
+  }
+  updateMidiUi();
   refreshShifts();
   setBusy(null);
   updateButtons();
@@ -528,6 +535,201 @@ function updateSnap() {
   roll.snapStepSec = Number(field('snap').value) * (60 / bpm);
 }
 
+// ---------- MIDI ----------
+
+let midi: MidiFile | null = null;
+const midiOpts = {
+  track: 'auto' as 'auto' | 'all' | number,
+  chords: 'highest' as ChordMode,
+  offset: 0,
+  transpose: 0,
+  matchOctave: true,
+  follow: true,
+};
+/** The track "Best match" settled on, and the semitones the MIDI is moved to sit in the voice's octave. */
+let autoTrack = 0;
+let appliedTranspose = 0;
+let melody: Span[] = [];
+const midiFileInput = $<HTMLInputElement>('midiFile');
+
+const sungSpans = (): Span[] => {
+  const hop = analysis?.hopSec ?? 0.005;
+  return notes.map((n) => ({ start: n.start * hop, end: n.end * hop, pitch: n.pitch }));
+};
+
+function midiSource(): Span[] {
+  if (!midi) return [];
+  if (midiOpts.track === 'all') return midi.notes;
+  return midi.tracks[midiOpts.track === 'auto' ? autoTrack : midiOpts.track]?.notes ?? [];
+}
+
+/** Line the MIDI up with the singing: choose the best track (if on Best match) and the time offset. */
+function alignMidi() {
+  if (!midi || !analysis) return;
+  const sung = sungSpans();
+  if (midiOpts.track === 'auto') {
+    const best = bestTrack(sung, midi.tracks.map((t) => toMelody(t.notes, 'highest')));
+    autoTrack = best.track;
+    midiOpts.offset = best.offset;
+  } else {
+    midiOpts.offset = alignOffset(sung, toMelody(midiSource(), midiOpts.chords)).offset;
+  }
+  midiOpts.offset = Math.round(midiOpts.offset * 100) / 100;
+}
+
+/** Give every sung note the MIDI note it overlaps most (or none). */
+function assignFollow() {
+  if (!midi || !midiOpts.follow) {
+    for (const n of notes) n.follow = null;
+    return;
+  }
+  const targets = assignTargets(sungSpans(), melody, midiOpts.offset, appliedTranspose);
+  notes.forEach((n, i) => (n.follow = targets[i]));
+}
+
+/**
+ * Work out the melody from the MIDI, cut sung notes where the MIDI changes note, make each sung
+ * note follow its MIDI note, and re-render. `undo` and `split` are off when this is only tidying up
+ * after an edit the user just made.
+ */
+function applyMidi({ undo = true, split = true } = {}) {
+  if (!analysis) {
+    updateMidiUi();
+    return;
+  }
+  if (undo) pushUndo();
+  const hop = analysis.hopSec;
+  melody = [];
+  if (midi && midiOpts.follow) {
+    const sung = sungSpans();
+    const voiceAt = (t: number) => {
+      const at = t + midiOpts.offset;
+      return sung.find((s) => at >= s.start && at < s.end)?.pitch ?? null;
+    };
+    melody = toMelody(midiSource(), midiOpts.chords, voiceAt);
+    appliedTranspose = (midiOpts.matchOctave ? octaveFor(sung, melody, midiOpts.offset) : 0) + midiOpts.transpose;
+    if (split) {
+      const next: Note[] = [];
+      for (const n of notes) {
+        const span = { start: n.start * hop, end: n.end * hop, pitch: n.pitch };
+        const cuts = splitPoints(span, melody, midiOpts.offset)
+          .map((t) => Math.round(t / hop))
+          .filter((f) => f > n.start + 1 && f < n.end - 1);
+        if (!cuts.length) {
+          next.push(n);
+          continue;
+        }
+        const edges = [n.start, ...cuts, n.end];
+        for (let i = 0; i + 1 < edges.length; i++) {
+          next.push({ ...n, start: edges[i], end: edges[i + 1], pitch: notePitch(analysis.f0, edges[i], edges[i + 1]) });
+        }
+      }
+      notes = next;
+    }
+  }
+  assignFollow();
+  roll.midiNotes = melody.map((m) => ({ start: m.start + midiOpts.offset, end: m.end + midiOpts.offset, pitch: m.pitch + appliedTranspose }));
+  roll.setNotes(notes, Math.min(roll.selectedIndex, notes.length - 1));
+  commit();
+  updateMidiUi();
+}
+
+async function loadMidi(file: File) {
+  try {
+    midi = parseMidi(await file.arrayBuffer(), file.name);
+  } catch (err) {
+    toast(err instanceof Error ? err.message : "Couldn't read that MIDI file.");
+    return;
+  }
+  Object.assign(midiOpts, { track: 'auto', offset: 0, transpose: 0, follow: true });
+  // The track picker lists this file's tracks.
+  const picker = field('midiTrack');
+  picker.querySelectorAll('sp-menu-item:not([value="auto"]):not([value="all"])').forEach((el) => el.remove());
+  midi.tracks.forEach((t, i) => picker.append(menuItem(String(i), `${t.name} (${t.notes.length})`)));
+  picker.value = 'auto';
+  field('midiChords').value = midiOpts.chords;
+  if (analysis) {
+    alignMidi();
+    applyMidi();
+    flash(`The voice now follows ${file.name}`);
+  }
+  // Show the MIDI settings.
+  ($('panelTabs') as HTMLElement & { selected: string }).selected = 'midi';
+  updateMidiUi();
+}
+
+function clearMidi() {
+  midi = null;
+  midiOpts.offset = 0;
+  midiOpts.transpose = 0;
+  if (analysis) applyMidi();
+  roll.midiNotes = [];
+  updateMidiUi();
+}
+
+/** Keep the MIDI section in step with the state: what is loaded, what is enabled, the numbers shown. */
+function updateMidiUi() {
+  const loaded = midi !== null;
+  const ready = loaded && analysis !== null;
+  for (const id of ['midiFollow', 'midiTrack', 'midiChords', 'midiOffset', 'midiAlign', 'midiTranspose']) field(id).disabled = !ready;
+  field('midiOctave').disabled = !ready || !midiOpts.follow;
+  field('midiClear').disabled = !loaded;
+  field('midiOffset').value = midiOpts.offset;
+  field('midiTranspose').value = midiOpts.transpose;
+  (field('midiFollow') as unknown as { checked: boolean }).checked = midiOpts.follow;
+  (field('midiOctave') as unknown as { checked: boolean }).checked = midiOpts.matchOctave;
+  if (!midi) {
+    $('midiInfo').textContent = 'No MIDI loaded. Import one and the voice follows its notes.';
+    return;
+  }
+  if (!analysis) {
+    $('midiInfo').textContent = `${midi.name} · ${midi.notes.length} notes. Load a vocal and it will line up.`;
+    return;
+  }
+  const track = midiOpts.track === 'all' ? 'all tracks' : midi.tracks[midiOpts.track === 'auto' ? autoTrack : midiOpts.track]?.name;
+  const octave = appliedTranspose - midiOpts.transpose;
+  $('midiInfo').textContent =
+    `${midi.name} · ${track} · ${melody.length} notes` + (octave ? ` · moved ${octave > 0 ? '+' : '−'}${Math.abs(octave) / 12} octave${Math.abs(octave) === 12 ? '' : 's'}` : '');
+}
+
+field('midiTrack').addEventListener('change', () => {
+  const v = String(field('midiTrack').value);
+  midiOpts.track = v === 'auto' || v === 'all' ? v : Number(v);
+  alignMidi();
+  applyMidi();
+});
+field('midiChords').addEventListener('change', () => {
+  midiOpts.chords = String(field('midiChords').value) as ChordMode;
+  applyMidi();
+});
+field('midiOffset').addEventListener('change', () => {
+  midiOpts.offset = Number(field('midiOffset').value) || 0;
+  applyMidi();
+});
+field('midiTranspose').addEventListener('change', () => {
+  midiOpts.transpose = Number(field('midiTranspose').value) || 0;
+  applyMidi();
+});
+field('midiAlign').addEventListener('click', () => {
+  alignMidi();
+  applyMidi();
+});
+field('midiFollow').addEventListener('change', () => {
+  midiOpts.follow = (field('midiFollow') as unknown as { checked: boolean }).checked;
+  applyMidi();
+});
+field('midiOctave').addEventListener('change', () => {
+  midiOpts.matchOctave = (field('midiOctave') as unknown as { checked: boolean }).checked;
+  applyMidi();
+});
+field('midiImport').addEventListener('click', () => midiFileInput.click());
+field('midiClear').addEventListener('click', clearMidi);
+midiFileInput.onchange = () => {
+  const f = midiFileInput.files?.[0];
+  if (f) void loadMidi(f);
+  midiFileInput.value = '';
+};
+
 // ---------- Editing notes ----------
 
 roll.onEditStart = pushUndo;
@@ -600,6 +802,7 @@ roll.onCut = (i, frame) => {
   const b: Note = { ...n, start: frame, pitch: notePitch(f0, frame, n.end) };
   notes.splice(i, 1, a, b);
   roll.setNotes(notes, i + 1);
+  assignFollow();
   commit();
 };
 
@@ -620,6 +823,7 @@ function mergeSelected() {
     shift: (a.shift * la + b.shift * lb) / (la + lb),
   });
   roll.setNotes(notes, j);
+  assignFollow();
   commit();
 }
 
@@ -629,6 +833,7 @@ function deleteSelected() {
   pushUndo();
   notes.splice(i, 1);
   roll.setNotes(notes, Math.min(i, notes.length - 1));
+  assignFollow();
   commit();
 }
 
@@ -645,11 +850,11 @@ function nudgeSelected(dir: 1 | -1) {
   const i = roll.selectedIndex;
   if (i < 0) return;
   const n = notes[i];
-  const auto = autoShift(n, params);
-  const now = n.pitch + auto + n.shift;
-  const target = stepInScale(now, dir, params.mask);
+  // Where the note would sit with no edit of its own: corrected, or following MIDI.
+  const base = n.pitch + totalShift(n, params) - n.shift;
+  const target = stepInScale(base + n.shift, dir, params.mask);
   pushUndo();
-  n.shift = target - (n.pitch + auto);
+  n.shift = target - base;
   commit();
 }
 
@@ -726,6 +931,7 @@ const actions: Record<string, () => void> = {
   open: () => fileInput.click(),
   record: () => void toggleRecord(),
   demo: loadDemo,
+  midi: () => midiFileInput.click(),
   export: exportWav,
 };
 document.querySelectorAll<HTMLElement>('[data-action]').forEach((el) => {
@@ -799,7 +1005,7 @@ window.addEventListener('keydown', (e) => {
   const inControl = path.some(
     (el) =>
       el instanceof HTMLElement &&
-      /^(INPUT|TEXTAREA|SELECT|SP-NUMBER-FIELD|SP-SLIDER|SP-PICKER|SP-MENU|SP-MENU-ITEM|SP-ACTION-MENU|SP-TEXTFIELD)$/.test(el.tagName),
+      /^(INPUT|TEXTAREA|SELECT|SP-NUMBER-FIELD|SP-SLIDER|SP-PICKER|SP-MENU|SP-MENU-ITEM|SP-ACTION-MENU|SP-TEXTFIELD|SP-SWITCH)$/.test(el.tagName),
   );
   const mod = e.ctrlKey || e.metaKey;
   const key = e.key.toLowerCase();
@@ -876,7 +1082,9 @@ window.addEventListener('drop', (e) => {
   e.preventDefault();
   stage.classList.remove('drag');
   const f = e.dataTransfer?.files[0];
-  if (f) void loadFile(f);
+  if (!f) return;
+  if (/\.midi?$/i.test(f.name)) void loadMidi(f);
+  else void loadFile(f);
 });
 
 /**
@@ -893,7 +1101,7 @@ function styleInside(host: HTMLElement | null | undefined, css: string) {
 void (async () => {
   await Promise.all(['sp-number-field', 'sp-slider', 'sp-action-menu'].map((n) => customElements.whenDefined(n)));
   const centre = 'input.input { text-align: center; padding-block: 6px 7px; }';
-  const fields = [$('bpm'), $('srcBpm'), $('noteOffset')];
+  const fields = [$('bpm'), $('srcBpm'), $('noteOffset'), $('midiOffset'), $('midiTranspose')];
   for (const f of fields) {
     await (f as HTMLElement & { updateComplete?: Promise<unknown> }).updateComplete;
     styleInside(f, centre);

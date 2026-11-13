@@ -20,6 +20,8 @@ export class PianoRoll {
   curve: Float32Array = new Float32Array(0);
   /** How wide a stretch of the line the Curve tool bends, in seconds. */
   brushSec = 0.12;
+  /** The MIDI notes the voice follows, in seconds of the original recording, already moved into place. */
+  midiNotes: { start: number; end: number; pitch: number }[] = [];
   /** Colours, taken from the Spectrum theme. */
   palette: Palette = defaultPalette;
   /** Tempo, for the bar and beat grid. */
@@ -446,6 +448,25 @@ export class PianoRoll {
       g.closePath();
       g.fill();
     });
+
+    // MIDI: the notes the voice is following, as outlines at their pitch.
+    if (this.midiNotes.length) {
+      const stretch = this.srcHop > 0 ? this.hopSec / this.srcHop : 1;
+      g.lineWidth = 1.5;
+      for (const m of this.midiNotes) {
+        const x0 = this.xOf(m.start * stretch);
+        const x1 = this.xOf(m.end * stretch);
+        if (x1 < KEYW || x0 > w) continue;
+        const y = this.yOf(m.pitch) - rowH / 2 + 1;
+        g.fillStyle = P.midiFill;
+        g.strokeStyle = P.midi;
+        // A little larger than a note, so the outline still shows when the voice sits right on it.
+        this.roundRect(x0 - 2, y - 3, Math.max(2, x1 - x0) + 4, rowH + 4, 4);
+        g.fill();
+        g.stroke();
+      }
+      g.lineWidth = 1;
+    }
 
     // Notes: translucent orange boxes.
     this.notes.forEach((n, i) => {

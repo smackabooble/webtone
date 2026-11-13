@@ -136,3 +136,26 @@ describe('holding the playhead', () => {
     expect(grainHop(0)).toBeCloseTo(0.025, 6);
   });
 });
+
+describe('notes that follow MIDI', () => {
+  const notes = [
+    { start: 0, end: 20, pitch: 60.3, shift: 0, follow: 64 },
+    { start: 20, end: 40, pitch: 60.3, shift: 0.5, follow: 62 },
+    { start: 40, end: 60, pitch: 60.3, shift: 0, follow: null },
+  ];
+  const f0 = new Float32Array(60).fill(262.5);
+  it('moves a note to the MIDI pitch, ignoring the automatic correction', () => {
+    const s = frameShifts(notes, f0, 0.005, params({ center: 1, transitionMs: 0 }));
+    expect(60.3 + s[10]).toBeCloseTo(64, 5);
+    // A note that is not following MIDI is still pulled to the scale.
+    expect(60.3 + s[50]).toBeCloseTo(60, 5);
+  });
+  it('adds the note’s own edit on top', () => {
+    const s = frameShifts(notes, f0, 0.005, params({ transitionMs: 0 }));
+    expect(60.3 + s[30]).toBeCloseTo(62.5, 5);
+  });
+  it('counts as a change, so the audio is processed', () => {
+    expect(isNeutral([notes[0]], params({}))).toBe(false);
+    expect(isNeutral([{ ...notes[0], follow: 60.3 }], params({}))).toBe(true);
+  });
+});

@@ -20,6 +20,10 @@
               Open audio…
               <span slot="value">Ctrl+O</span>
             </sp-menu-item>
+            <sp-menu-item value="midi">
+              <sp-icon-music-note slot="icon"></sp-icon-music-note>
+              Import MIDI…
+            </sp-menu-item>
             <sp-menu-item value="record">
               <sp-icon-microphone slot="icon"></sp-icon-microphone>
               Record from microphone
@@ -178,23 +182,15 @@
 
           <!-- ===== Properties ===== -->
           <aside id="panel" aria-label="Properties">
+            <sp-tabs id="panelTabs" selected="correct" size="s" compact>
+              <sp-tab value="correct" label="Correct">Correct</sp-tab>
+              <sp-tab value="midi" label="MIDI and tempo">MIDI &amp; tempo</sp-tab>
+              <sp-tab-panel value="correct">
             <section>
               <h3>Pitch correction</h3>
               <sp-slider id="sCenter" label="Center" min="0" max="100" step="1" value="0" editable hide-stepper format-options='{"style":"unit","unit":"percent"}' title="Pull every note towards the nearest note of the scale"></sp-slider>
               <sp-slider id="sVariation" label="Variation" min="0" max="100" step="1" value="0" editable hide-stepper format-options='{"style":"unit","unit":"percent"}' title="Smooth out the natural wobble inside each note (vibrato, drift)"></sp-slider>
               <sp-slider id="sTransition" label="Transition" min="0" max="200" step="1" value="25" editable hide-stepper format-options='{"style":"unit","unit":"millisecond"}' title="How quickly pitch glides from one note to the next"></sp-slider>
-            </section>
-
-            <sp-divider size="s"></sp-divider>
-
-            <section>
-              <h3>Tempo</h3>
-              <div class="field-row">
-                <sp-field-label for="srcBpm" size="s">Recorded at</sp-field-label>
-                <sp-number-field id="srcBpm" size="s" hide-stepper min="30" max="300" step="1" value="120" label="Tempo the recording was made at"></sp-number-field>
-                <span class="unit">BPM</span>
-              </div>
-              <p id="speedInfo" class="note-info">Playing at 100% speed</p>
             </section>
 
             <sp-divider size="s"></sp-divider>
@@ -228,6 +224,61 @@
                 </sp-picker>
               </div>
             </section>
+              </sp-tab-panel>
+              <sp-tab-panel value="midi">
+            <section>
+              <h3>MIDI</h3>
+              <p id="midiInfo" class="small">No MIDI loaded. Import one and the voice follows its notes.</p>
+              <div class="button-row">
+                <sp-action-button id="midiImport" size="s">Import MIDI…</sp-action-button>
+                <sp-action-button id="midiClear" size="s" quiet disabled>Remove</sp-action-button>
+              </div>
+              <sp-switch id="midiFollow" size="s" checked disabled>Follow the MIDI</sp-switch>
+              <div class="field-row">
+                <sp-field-label for="midiTrack" size="s">Track</sp-field-label>
+                <sp-picker id="midiTrack" size="s" label="Track" value="auto" disabled>
+                  <sp-menu-item value="auto">Best match</sp-menu-item>
+                  <sp-menu-item value="all">All tracks</sp-menu-item>
+                </sp-picker>
+              </div>
+              <div class="field-row">
+                <sp-field-label for="midiChords" size="s">Chords</sp-field-label>
+                <sp-picker id="midiChords" size="s" label="Chords" value="highest" disabled>
+                  <sp-menu-item value="highest">Highest note</sp-menu-item>
+                  <sp-menu-item value="lowest">Lowest note</sp-menu-item>
+                  <sp-menu-item value="closest">Nearest my voice</sp-menu-item>
+                </sp-picker>
+              </div>
+              <div class="field-row compact">
+                <sp-field-label for="midiOffset" size="s">Offset</sp-field-label>
+                <sp-number-field id="midiOffset" size="s" hide-stepper step="0.01" value="0" disabled label="Move the MIDI later or earlier, in seconds" format-options='{"minimumFractionDigits":2,"maximumFractionDigits":2,"signDisplay":"exceptZero"}'></sp-number-field>
+                <span class="unit">s</span>
+                <sp-action-button id="midiAlign" size="s" quiet disabled>
+                  Align
+                  <sp-tooltip self-managed placement="top">Line the MIDI up with the singing automatically</sp-tooltip>
+                </sp-action-button>
+              </div>
+              <div class="field-row compact">
+                <sp-field-label for="midiTranspose" size="s">Transpose</sp-field-label>
+                <sp-number-field id="midiTranspose" size="s" hide-stepper step="1" value="0" disabled label="Move the MIDI up or down, in semitones" format-options='{"signDisplay":"exceptZero"}'></sp-number-field>
+                <span class="unit">st</span>
+              </div>
+              <sp-switch id="midiOctave" size="s" checked disabled>Match my octave</sp-switch>
+            </section>
+
+            <sp-divider size="s"></sp-divider>
+
+            <section>
+              <h3>Tempo</h3>
+              <div class="field-row">
+                <sp-field-label for="srcBpm" size="s">Recorded at</sp-field-label>
+                <sp-number-field id="srcBpm" size="s" hide-stepper min="30" max="300" step="1" value="120" label="Tempo the recording was made at"></sp-number-field>
+                <span class="unit">BPM</span>
+              </div>
+              <p id="speedInfo" class="note-info">Playing at 100% speed</p>
+            </section>
+              </sp-tab-panel>
+            </sp-tabs>
           </aside>
         </div>
 
@@ -258,6 +309,8 @@
                 <li><b>Pitch line</b> <kbd>P</kbd> bends the line itself, including glides between notes. <kbd>Shift</kbd> for fine, double-click to straighten.</li>
                 <li><b>Merge</b> <kbd>G</kbd> joins the selected note with its neighbour. <kbd>Delete</kbd> removes it.</li>
               </ul>
+              <h3>MIDI</h3>
+              <p><b>Import MIDI…</b> (File menu) makes the voice follow a MIDI melody. It lines the MIDI up with your singing, picks the best track, and where several notes start together it keeps one (highest, lowest, or the one nearest your voice). Each sung note becomes the MIDI note it overlaps, and a note held across two MIDI notes is cut in two. <b>Match my octave</b> moves the MIDI into your own octave. Nudge <b>Offset</b> or press <b>Align</b> if the timing is off.</p>
               <h3>Tempo</h3>
               <p>The <b>BPM</b> box is the tempo you hear. Say what tempo the recording was made at under <b>Recorded at</b>, then change BPM to speed the audio up or slow it down by up to 2×, without changing its pitch. The ruler's bars and beats follow it, and cuts can snap to the beat.</p>
               <h3>Shortcuts</h3>
@@ -279,6 +332,7 @@
     </sp-theme>
 
     <input id="file" type="file" accept="audio/*" hidden />
+    <input id="midiFile" type="file" accept=".mid,.midi,audio/midi,audio/x-midi" hidden />
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

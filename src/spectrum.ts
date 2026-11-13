@@ -24,6 +24,10 @@ import '@spectrum-web-components/dialog/sp-dialog.js';
 import '@spectrum-web-components/divider/sp-divider.js';
 import '@spectrum-web-components/progress-circle/sp-progress-circle.js';
 import '@spectrum-web-components/toast/sp-toast.js';
+import '@spectrum-web-components/switch/sp-switch.js';
+import '@spectrum-web-components/tabs/sp-tabs.js';
+import '@spectrum-web-components/tabs/sp-tab.js';
+import '@spectrum-web-components/tabs/sp-tab-panel.js';
 import '@spectrum-web-components/illustrated-message/sp-illustrated-message.js';
 
 import '@spectrum-web-components/icons-workflow/icons/sp-icon-play.js';
@@ -43,3 +47,4 @@ import '@spectrum-web-components/icons-workflow/icons/sp-icon-full-screen.js';
 import '@spectrum-web-components/icons-workflow/icons/sp-icon-folder-open.js';
 import '@spectrum-web-components/icons-workflow/icons/sp-icon-export.js';
 import '@spectrum-web-components/icons-workflow/icons/sp-icon-audio-wave.js';
+import '@spectrum-web-components/icons-workflow/icons/sp-icon-music-note.js';

@@ -51,6 +51,8 @@ sp-theme#theme {
   --roll-key-white-out1: #7d888d;
   --roll-key-edge: #7e8b91;
   --roll-key-label: #5d6e76;
+  --roll-midi: #7fd1ff;
+  --roll-midi-fill: rgba(127, 209, 255, 0.16);
 }
 
 html,
@@ -249,6 +251,23 @@ sp-theme {
 #panel section:first-child {
   padding-top: 0;
 }
+#panelTabs {
+  display: block;
+  width: 100%;
+}
+#panelTabs sp-tab-panel {
+  padding: var(--spectrum-spacing-300) 0 0;
+}
+/* Spectrum lays a panel's children out in a row; stack them. Only the selected panel is shown. */
+#panelTabs sp-tab-panel[selected] {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+#panelTabs sp-tab-panel > * {
+  flex: none;
+  min-width: 0;
+}
 #panel h3 {
   margin: 0;
   color: var(--spectrum-gray-700);
@@ -273,6 +292,24 @@ sp-theme {
   height: auto;
   color: var(--spectrum-gray-700);
   font-size: var(--spectrum-font-size-75);
+}
+.small {
+  height: 34px;
+  margin: 0;
+  overflow: hidden;
+  color: var(--spectrum-gray-700);
+  font-size: var(--spectrum-font-size-75);
+  line-height: 1.4;
+}
+.button-row {
+  display: flex;
+  gap: var(--spectrum-spacing-100);
+}
+.field-row.compact sp-field-label {
+  width: 70px;
+}
+.field-row.compact sp-number-field {
+  width: 66px;
 }
 .field-row {
   display: flex;

@@ -7,6 +7,8 @@ export interface Note {
   pitch: number;
   /** User edit in semitones, added on top of any automatic correction. */
   shift: number;
+  /** A MIDI pitch this note is following, if any. It replaces the automatic correction. */
+  follow?: number | null;
 }
 
 export const hzToMidi = (f: number) => 69 + 12 * Math.log2(f / 440);

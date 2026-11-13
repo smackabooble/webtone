@@ -32,6 +32,8 @@
     "@spectrum-web-components/popover": "^1.12.6",
     "@spectrum-web-components/progress-circle": "^1.12.6",
     "@spectrum-web-components/slider": "^1.12.6",
+    "@spectrum-web-components/switch": "^1.12.6",
+    "@spectrum-web-components/tabs": "^1.12.6",
     "@spectrum-web-components/theme": "^1.12.6",
     "@spectrum-web-components/toast": "^1.12.6",
     "@spectrum-web-components/tooltip": "^1.12.6"

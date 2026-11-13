@@ -16,8 +16,11 @@ export interface Params {
 /** Automatic correction for a note, from the Center control. */
 export const autoShift = (n: Note, p: Params) => p.center * (snapToScale(n.pitch, p.mask) - n.pitch);
 
-/** Everything applied to a note's centre pitch: automatic correction plus the user's own edit. */
-export const totalShift = (n: Note, p: Params) => autoShift(n, p) + n.shift;
+/**
+ * Everything applied to a note's centre pitch: either a move to the MIDI note it follows or the
+ * automatic correction, plus the user's own edit on top.
+ */
+export const totalShift = (n: Note, p: Params) => (n.follow != null ? n.follow - n.pitch : autoShift(n, p)) + n.shift;
 
 /** True when nothing would change, so the original audio can be used as is. */
 export function isNeutral(notes: Note[], p: Params, curve?: Float32Array): boolean {

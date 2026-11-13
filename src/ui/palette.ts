@@ -24,6 +24,8 @@ export interface Palette {
   keyWhiteOut1: string;
   keyEdge: string;
   keyLabel: string;
+  midi: string;
+  midiFill: string;
 }
 
 /** Newtone-like tones; the real values live in style.css as --roll-* variables. */
@@ -52,6 +54,8 @@ export const defaultPalette: Palette = {
   keyWhiteOut1: '#7d888d',
   keyEdge: '#7e8b91',
   keyLabel: '#5d6e76',
+  midi: '#7fd1ff',
+  midiFill: 'rgba(127,209,255,0.16)',
 };
 
 const kebab = (k: string) => k.replace(/[A-Z0-9]/g, (c) => '-' + c.toLowerCase());

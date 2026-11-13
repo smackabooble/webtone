@@ -27,6 +27,8 @@ Deployed with GitHub Pages: https://smackabooble.github.io/webtone/
 
 Tools (left side): **Select** (`V`), **Cut** (`C`, click a note to split it, with optional snapping to the beat), **Pitch line** (`P`, bend the line itself, including the glides between notes; **Shift** for fine adjustment, double-click to straighten), **Merge** (`G`) and **Delete**.
 
+MIDI: **File → Import MIDI…** (or drop a `.mid` file on the page) makes the voice follow a MIDI melody. The app lines the MIDI up with your singing (and picks the track that fits best), then each sung note becomes the MIDI note it overlaps, and a note held across two MIDI notes is cut in two. Where several MIDI notes start together, one is kept: the **highest**, the **lowest**, or the one **nearest your voice**. **Match my octave** moves the MIDI into your own octave so the voice isn't dragged an octave away. Use **Offset** and **Align** if the timing is off, **Transpose** to change key, and the **Follow the MIDI** switch to compare. You can still adjust any note by hand on top of it.
+
 Tempo: the **BPM** box is the tempo you hear. Under **Recorded at**, say what tempo the recording was made at, then change BPM to speed the audio up or slow it down (up to 2×) without changing its pitch. The ruler's bars and beats follow it, and cuts can snap to the beat. **Original** plays the untouched audio at the same tempo.
 
 Other controls: wheel scrolls pitch, **Shift** + wheel scrolls time, **Ctrl** + wheel zooms (or use the zoom buttons, `+`, `-`, `0`); arrow keys move the selected note one scale step; **Backspace** resets a note; **Ctrl+Z** / **Ctrl+Shift+Z** undo and redo; **Ctrl+O** opens, **Ctrl+E** exports; **?** shows help.
@@ -42,6 +44,8 @@ The interface uses [Adobe Spectrum](https://spectrum.adobe.com/) through [Spectr
 3. **Resynthesis** – TD-PSOLA: pitch-synchronous grains are re-spaced to change pitch while keeping timing and formants, so the voice keeps its character. The same method time-stretches the audio when you change the tempo. There is no limit on how far a note can be moved: up to about an octave up or seven semitones down is done in one pass, and anything further is done as several smaller passes (the sound gets rougher the further you go).
 
 Newtone's own detection is not documented; the three knobs and the tools (cut, glue) are modelled on its manual.
+
+4. **MIDI following** – a small Standard MIDI File reader, then one note at a time is chosen from chords, the MIDI is lined up with the singing by searching for the time shift (and key difference) where the most sung and MIDI frames agree, and each sung note is given the MIDI note it overlaps most.
 
 ## Tests
 
