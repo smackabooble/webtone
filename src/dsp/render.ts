@@ -22,7 +22,8 @@ export const autoShift = (n: Note, p: Params) => p.center * (snapToScale(n.pitch
 export const totalShift = (n: Note, p: Params) => autoShift(n, p) + n.shift;
 
 /** True when nothing would change, so the original audio can be used as is. */
-export function isNeutral(notes: Note[], p: Params): boolean {
+export function isNeutral(notes: Note[], p: Params, curve?: Float32Array): boolean {
+  if (curve?.some((v) => v !== 0)) return false;
   return p.variation === 0 && notes.every((n) => totalShift(n, p) === 0);
 }
 
@@ -30,9 +31,16 @@ export function isNeutral(notes: Note[], p: Params): boolean {
  * Semitones to shift each analysis frame by. Inside a note:
  *   target = note pitch + total shift + (1 - variation) * (what was sung - note pitch)
  * so variation = 0 keeps the performance as sung, 1 makes the note dead flat.
- * Then the result is smoothed over the transition time so pitch glides between notes.
+ * Then the result is smoothed over the transition time so pitch glides between notes, and
+ * finally the hand-drawn `curve` edits are added on top, exactly as drawn.
  */
-export function frameShifts(notes: Note[], f0: Float32Array, hopSec: number, p: Params): Float32Array {
+export function frameShifts(
+  notes: Note[],
+  f0: Float32Array,
+  hopSec: number,
+  p: Params,
+  curve?: Float32Array,
+): Float32Array {
   const T = f0.length;
   const raw = new Float32Array(T);
   for (const n of notes) {
@@ -44,15 +52,22 @@ export function frameShifts(notes: Note[], f0: Float32Array, hopSec: number, p: 
     }
   }
   const width = Math.max(1, Math.round(p.transitionMs / 1000 / hopSec));
-  if (width <= 1) return raw;
-  const half = width >> 1;
-  const prefix = new Float64Array(T + 1);
-  for (let i = 0; i < T; i++) prefix[i + 1] = prefix[i] + raw[i];
-  const out = new Float32Array(T);
-  for (let i = 0; i < T; i++) {
-    const a = Math.max(0, i - half);
-    const b = Math.min(T, i + half + 1);
-    out[i] = (prefix[b] - prefix[a]) / (b - a);
+  let out = raw;
+  if (width > 1) {
+    const half = width >> 1;
+    const prefix = new Float64Array(T + 1);
+    for (let i = 0; i < T; i++) prefix[i + 1] = prefix[i] + raw[i];
+    out = new Float32Array(T);
+    for (let i = 0; i < T; i++) {
+      const a = Math.max(0, i - half);
+      const b = Math.min(T, i + half + 1);
+      out[i] = (prefix[b] - prefix[a]) / (b - a);
+    }
+  }
+  if (curve) {
+    for (let i = 0; i < T; i++) {
+      if (curve[i] !== 0 && f0[i] > 0) out[i] = Math.max(-MAX_SHIFT - 4, Math.min(MAX_SHIFT + 4, out[i] + curve[i]));
+    }
   }
   return out;
 }

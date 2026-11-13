@@ -45,6 +45,11 @@
 
       <div class="group">
         <button id="cut" disabled aria-pressed="false" title="Cut tool (C): click a note to split it">✂ Cut</button>
+        <button id="curveTool" disabled aria-pressed="false" title="Pitch line tool (P): drag the line up or down to bend it. Hold Shift for fine adjustment, double-click to straighten.">〰 Line</button>
+        <label class="mini" title="How wide a stretch of the line the Line tool bends">
+          Width
+          <input id="brush" type="range" min="30" max="400" value="120" />
+        </label>
         <button id="merge" disabled title="Join the selected note with its neighbour (G)">Merge</button>
         <button id="delete" disabled title="Remove the selected note (Delete)">Delete</button>
       </div>
@@ -102,6 +107,7 @@
           <li><b>✂ Cut</b> (<kbd>C</kbd>), then click a note to split it.</li>
           <li><b>Merge</b> (<kbd>G</kbd>) joins the selected note with its neighbour.</li>
           <li><kbd>Delete</kbd> removes a note, leaving that part untouched.</li>
+          <li><b>〰 Line</b> (<kbd>P</kbd>) lets you bend the pitch line itself, including the glides between notes. Drag up or down on the line; <b>Width</b> sets how much of it moves, <kbd>Shift</kbd> makes it a quarter as sensitive for fine adjustment, and a double-click straightens that part again.</li>
         </ul>
         <h3>Shortcuts</h3>
         <table>

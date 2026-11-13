@@ -1,4 +1,5 @@
 import { hzToMidi, type Note } from '../dsp/segment';
+import { bendCurve, clearCurve } from '../dsp/curve';
 
 const KEYW = 44;
 const RULER = 22;
@@ -6,7 +7,7 @@ const BLACK = [0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0];
 const CHROMATIC = new Array<boolean>(12).fill(true);
 const MAX_SHIFT = 12;
 
-export type Tool = 'select' | 'cut';
+export type Tool = 'select' | 'cut' | 'curve';
 
 export class PianoRoll {
   notes: Note[] = [];
@@ -14,6 +15,10 @@ export class PianoRoll {
   env: Float32Array = new Float32Array(0);
   /** Semitones each frame is shifted by (from the global controls), for drawing the pitch curve. */
   frameShift: Float32Array | null = null;
+  /** Hand edits to the pitch line (semitones per frame); the roll changes this directly while dragging. */
+  curve: Float32Array = new Float32Array(0);
+  /** How wide a stretch of the line the Curve tool bends, in seconds. */
+  brushSec = 0.12;
   hopSec = 0.005;
   duration = 0;
   playhead = 0;
@@ -34,6 +39,8 @@ export class PianoRoll {
   onSeek: (t: number) => void = () => {};
   onSeekEnd: () => void = () => {};
   onSelect: (index: number) => void = () => {};
+  /** Curve tool: the curve changed during a drag, so the line should be redrawn from it. */
+  onCurveLive: () => void = () => {};
   /** Cut tool: a note was clicked at this frame. */
   onCut: (index: number, frame: number) => void = () => {};
 
@@ -47,6 +54,7 @@ export class PianoRoll {
   private top = 76;
   private selected = -1;
   private scrubbing = false;
+  private curveDrag: { center: number; y: number; base: Float32Array; moved: boolean } | null = null;
   private drag: { index: number; y: number; base: number; start: number; startShift: number; moved: boolean } | null = null;
   private noteOf = new Int32Array(0);
   private hoverX = -1;
@@ -72,6 +80,10 @@ export class PianoRoll {
       requestAnimationFrame(loop);
     };
     requestAnimationFrame(loop);
+  }
+
+  canvasCursor(c: string) {
+    this.canvas.style.cursor = c;
   }
 
   get selectedIndex() {
@@ -210,6 +222,20 @@ export class PianoRoll {
     const { x, y } = this.pos(e);
     const i = this.hit(x, y);
     this.select(i);
+    if (this.tool === 'curve') {
+      if (x >= KEYW && y >= RULER && this.f0.length) {
+        const center = Math.round(this.tOf(x) / this.hopSec);
+        this.curveDrag = { center, y, base: this.curve.slice(), moved: false };
+        this.canvas.setPointerCapture(e.pointerId);
+      } else if (x >= KEYW && this.duration > 0) {
+        this.scrubbing = true;
+        this.canvas.setPointerCapture(e.pointerId);
+        this.onSeekStart();
+        this.scrub(x);
+      }
+      this.invalidate();
+      return;
+    }
     if (i >= 0 && this.tool === 'cut') {
       this.onCut(i, Math.round(this.tOf(x) / this.hopSec));
       return;
@@ -243,6 +269,27 @@ export class PianoRoll {
     const { x, y } = this.pos(e);
     if (this.scrubbing) {
       this.scrub(x);
+      return;
+    }
+    if (this.curveDrag) {
+      const d = this.curveDrag;
+      // Hold Shift to bend a quarter as far for each pixel moved: fine adjustment.
+      const dy = ((d.y - y) / this.rowH) * (e.shiftKey ? 0.25 : 1);
+      if (!d.moved && Math.abs(dy) > 0.02) {
+        d.moved = true;
+        this.onEditStart();
+      }
+      if (d.moved) {
+        bendCurve(this.curve, d.base, this.f0, this.hopSec, d.center, this.brushSec, dy);
+        this.onCurveLive();
+        this.invalidate();
+      }
+      return;
+    }
+    if (this.tool === 'curve') {
+      this.hoverX = x;
+      this.canvas.style.cursor = x >= KEYW && y >= RULER ? 'ns-resize' : y < RULER && x >= KEYW ? 'ew-resize' : 'default';
+      this.invalidate();
       return;
     }
     if (!this.drag) {
@@ -281,6 +328,12 @@ export class PianoRoll {
       this.onSeekEnd();
       return;
     }
+    if (this.curveDrag) {
+      const moved = this.curveDrag.moved;
+      this.curveDrag = null;
+      if (moved) this.onEdit();
+      return;
+    }
     if (!this.drag) return;
     const moved = this.drag.moved;
     this.drag = null;
@@ -288,6 +341,22 @@ export class PianoRoll {
   }
 
   private onDblClick(e: MouseEvent) {
+    if (this.tool === 'curve') {
+      // Double-click straightens out any hand edits under the brush.
+      const { x } = this.pos(e);
+      const center = Math.round(this.tOf(x) / this.hopSec);
+      const before = this.curve.slice();
+      if (clearCurve(this.curve, this.hopSec, center, this.brushSec)) {
+        const after = this.curve.slice();
+        this.curve.set(before);
+        this.onEditStart();
+        this.curve.set(after);
+        this.onCurveLive();
+        this.invalidate();
+        this.onEdit();
+      }
+      return;
+    }
     if (this.tool === 'cut') return;
     const { x, y } = this.pos(e);
     const i = this.hit(x, y);
@@ -417,6 +486,15 @@ export class PianoRoll {
     g.lineWidth = 1.8;
     g.stroke(path);
     g.lineWidth = 1;
+
+    // Curve tool: show how wide a stretch of the line a drag will bend.
+    if (this.tool === 'curve' && this.hoverX >= KEYW) {
+      const half = this.brushSec * this.pps;
+      g.fillStyle = 'rgba(255,255,255,0.07)';
+      g.fillRect(this.hoverX - half, RULER, half * 2, h - RULER);
+      g.fillStyle = 'rgba(255,255,255,0.35)';
+      g.fillRect(Math.round(this.hoverX) - 0.5, RULER, 1, h - RULER);
+    }
 
     // Cut tool: preview where the slice would fall.
     if (this.tool === 'cut' && this.hoverNote >= 0) {
