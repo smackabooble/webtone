@@ -1,5 +1,6 @@
 import { hzToMidi, type Note } from '../dsp/segment';
 import { bendCurve, clearCurve } from '../dsp/curve';
+import { gridLines, snapToGrid } from '../dsp/grid';
 
 const KEYW = 44;
 const RULER = 22;
@@ -19,6 +20,10 @@ export class PianoRoll {
   curve: Float32Array = new Float32Array(0);
   /** How wide a stretch of the line the Curve tool bends, in seconds. */
   brushSec = 0.12;
+  /** Tempo, for the bar and beat grid. */
+  bpm = 120;
+  /** Cuts snap to multiples of this many seconds; 0 = free. */
+  snapStepSec = 0;
   hopSec = 0.005;
   duration = 0;
   playhead = 0;
@@ -237,7 +242,7 @@ export class PianoRoll {
       return;
     }
     if (i >= 0 && this.tool === 'cut') {
-      this.onCut(i, Math.round(this.tOf(x) / this.hopSec));
+      this.onCut(i, Math.round(snapToGrid(this.tOf(x), this.snapStepSec) / this.hopSec));
       return;
     }
     if (i >= 0) {
@@ -392,16 +397,12 @@ export class PianoRoll {
       g.fillRect(KEYW, Math.round(y + rowH) - 0.5, w - KEYW, 1);
     }
 
-    // Time grid: a dark line per step, faint subdivisions.
-    const steps = [0.1, 0.25, 0.5, 1, 2, 5, 10, 30, 60];
-    const step = steps.find((s) => s * this.pps >= 70) ?? 60;
-    const t0 = Math.floor(this.tOf(KEYW) / step) * step;
+    // Tempo grid: bar lines, beats, and finer lines as you zoom in.
     const t1 = this.tOf(w);
-    for (let t = Math.max(0, t0); t <= t1 + step; t += step) {
-      for (let k = 0; k < 4; k++) {
-        g.fillStyle = k === 0 ? 'rgba(8,22,30,0.7)' : 'rgba(8,22,30,0.22)';
-        g.fillRect(Math.round(this.xOf(t + (k * step) / 4)) - 0.5, RULER, 1, h - RULER);
-      }
+    const lines = gridLines(this.tOf(KEYW), t1, this.bpm, this.pps);
+    for (const l of lines) {
+      g.fillStyle = l.level === 0 ? 'rgba(8,22,30,0.75)' : l.level === 1 ? 'rgba(8,22,30,0.4)' : 'rgba(8,22,30,0.16)';
+      g.fillRect(Math.round(this.xOf(l.t)) - 0.5, RULER, 1, h - RULER);
     }
 
     g.save();
@@ -503,8 +504,9 @@ export class PianoRoll {
       g.strokeStyle = 'rgba(255,255,255,0.9)';
       g.setLineDash([4, 3]);
       g.beginPath();
-      g.moveTo(Math.round(this.hoverX) + 0.5, cy - rowH * 1.4);
-      g.lineTo(Math.round(this.hoverX) + 0.5, cy + rowH * 1.4);
+      const cx = Math.round(this.xOf(snapToGrid(this.tOf(this.hoverX), this.snapStepSec))) + 0.5;
+      g.moveTo(cx, cy - rowH * 1.4);
+      g.lineTo(cx, cy + rowH * 1.4);
       g.stroke();
       g.setLineDash([]);
     }
@@ -522,11 +524,12 @@ export class PianoRoll {
     g.font = '11px system-ui, sans-serif';
     g.textBaseline = 'middle';
     g.textAlign = 'left';
-    for (let t = Math.max(0, t0); t <= t1; t += step) {
-      const x = this.xOf(t);
+    for (const l of lines) {
+      const x = this.xOf(l.t);
       if (x < KEYW) continue;
-      g.fillRect(Math.round(x) - 0.5, RULER - 7, 1, 7);
-      g.fillText(this.fmtTime(t, step), x + 4, RULER / 2 - 1);
+      const tick = l.level === 0 ? 9 : l.level === 1 ? 5 : 3;
+      g.fillRect(Math.round(x) - 0.5, RULER - tick, 1, tick);
+      if (l.level === 0) g.fillText(String(l.bar), x + 4, RULER / 2 - 2);
     }
     const hx = this.xOf(this.playhead);
     if (hx >= KEYW) {
@@ -577,13 +580,6 @@ export class PianoRoll {
     g.fillStyle = '#0b1920';
     g.fillRect(KEYW - 0.5, 0, 1, h);
     g.fillRect(0, RULER - 0.5, w, 1);
-  }
-
-  private fmtTime(t: number, step: number) {
-    const m = Math.floor(t / 60);
-    const s = t - m * 60;
-    const sec = step < 1 ? s.toFixed(2) : s.toFixed(0);
-    return m > 0 ? `${m}:${sec.padStart(step < 1 ? 5 : 2, '0')}` : `${sec}s`;
   }
 
   private roundRect(x: number, y: number, w: number, h: number, radius = 4) {

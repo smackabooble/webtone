@@ -15,21 +15,21 @@ Deployed with GitHub Pages: https://smackabooble.github.io/webtone/
 
 ## Use
 
-1. **Open** a file (or drop one on the page), **Record** from your microphone, or try the **Demo**. A solo vocal works best.
-2. Each sung note is an orange block; the red line is the pitch that was sung.
+1. Load a vocal from the **File** menu (or drop a file on the page), record with the red **●** button, or try the demo. A solo vocal works best.
+2. Each sung note is an orange block; the line is the pitch that was sung.
 3. **Drag a note** up or down to change its pitch. It snaps to the chosen key and scale; hold **Alt** to move freely.
-4. The three knobs work on every note at once:
+4. The three knobs work on every note at once. Drag a knob up or down (**Shift** for fine, double-click to reset):
    - **Center** pulls notes towards the nearest note of the scale.
    - **Variation** smooths out vibrato and wobble inside each note.
    - **Transition** sets how quickly pitch glides from one note to the next.
-5. **Space** plays and stops. **Original** switches to the untouched audio so you can compare.
-6. **Export WAV** when you're done.
+5. **Space** plays and stops. **Original** switches to the untouched audio so you can compare. Drag the ruler to scrub and hear the audio under the playhead.
+6. **Export** when you're done.
 
-Fixing detection: **Cut** (`C`) then click a note to split it, **Merge** (`G`) joins it with its neighbour, **Delete** removes it.
+Tools (left side): **Select** (`V`), **Cut** (`C`, click a note to split it, with optional snapping to the beat), **Pitch line** (`P`, bend the line itself, including the glides between notes; **Shift** for fine adjustment, double-click to straighten), **Merge** (`G`) and **Delete**.
 
-Fine adjustment: the **Line** tool (`P`) bends the pitch line itself, including the glides between notes. Drag up or down on the line; **Width** sets how much of it moves, **Shift** makes it a quarter as sensitive, and a double-click straightens that part again.
+Tempo: the **BPM** box sets the bar and beat grid on the ruler and what cuts snap to. It does not change the speed of the audio.
 
-Other controls: drag the ruler to move the playhead; wheel scrolls pitch, **Shift** + wheel scrolls time, **Ctrl** + wheel zooms (or use the zoom buttons, `+`, `-`, `0`); arrow keys move the selected note one scale step; **Backspace** or double-click resets a note; **Ctrl+Z** / **Ctrl+Shift+Z** undo and redo; **?** shows help.
+Other controls: wheel scrolls pitch, **Shift** + wheel scrolls time, **Ctrl** + wheel zooms (or use the zoom buttons, `+`, `-`, `0`); arrow keys move the selected note one scale step; **Backspace** resets a note; **Ctrl+Z** / **Ctrl+Shift+Z** undo and redo; **Ctrl+O** opens, **Ctrl+E** exports; **?** shows help.
 
 ## How it works
 
