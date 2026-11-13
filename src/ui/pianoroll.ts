@@ -6,23 +6,36 @@ const BLACK = [0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0];
 const CHROMATIC = new Array<boolean>(12).fill(true);
 const MAX_SHIFT = 12;
 
+export type Tool = 'select' | 'cut';
+
 export class PianoRoll {
   notes: Note[] = [];
   f0: Float32Array = new Float32Array(0);
   env: Float32Array = new Float32Array(0);
+  /** Semitones each frame is shifted by (from the global controls), for drawing the pitch curve. */
+  frameShift: Float32Array | null = null;
   hopSec = 0.005;
   duration = 0;
   playhead = 0;
+  tool: Tool = 'select';
   /** Pitch classes notes snap to; rows outside it are dimmed. */
   scale: boolean[] = CHROMATIC;
   /** Snaps a dragged pitch to an allowed note. */
   snap: (pitch: number) => number = Math.round;
+  /** Total shift of a note in semitones: the automatic correction plus the user's edit. */
+  shiftOf: (n: Note) => number = (n) => n.shift;
 
   /** Called before the first change of a drag, so the app can save undo state. */
   onEditStart: () => void = () => {};
   /** Called when an edit is finished. */
   onEdit: () => void = () => {};
+  /** Playhead scrubbing: called once on press, on every move, and once on release. */
+  onSeekStart: () => void = () => {};
   onSeek: (t: number) => void = () => {};
+  onSeekEnd: () => void = () => {};
+  onSelect: (index: number) => void = () => {};
+  /** Cut tool: a note was clicked at this frame. */
+  onCut: (index: number, frame: number) => void = () => {};
 
   private g: CanvasRenderingContext2D;
   private w = 0;
@@ -33,7 +46,11 @@ export class PianoRoll {
   /** MIDI pitch at the top edge of the note area. */
   private top = 76;
   private selected = -1;
-  private drag: { note: Note; y: number; target: number; moved: boolean } | null = null;
+  private scrubbing = false;
+  private drag: { index: number; y: number; base: number; start: number; startShift: number; moved: boolean } | null = null;
+  private noteOf = new Int32Array(0);
+  private hoverX = -1;
+  private hoverNote = -1;
   private dirty = true;
 
   constructor(private canvas: HTMLCanvasElement) {
@@ -45,6 +62,10 @@ export class PianoRoll {
     canvas.addEventListener('pointermove', (e) => this.onMove(e));
     canvas.addEventListener('pointerup', (e) => this.onUp(e));
     canvas.addEventListener('pointercancel', (e) => this.onUp(e));
+    canvas.addEventListener('pointerleave', () => {
+      this.hoverNote = -1;
+      this.invalidate();
+    });
     canvas.addEventListener('dblclick', (e) => this.onDblClick(e));
     const loop = () => {
       if (this.dirty) this.draw();
@@ -53,25 +74,60 @@ export class PianoRoll {
     requestAnimationFrame(loop);
   }
 
+  get selectedIndex() {
+    return this.selected;
+  }
+
+  select(i: number) {
+    if (i === this.selected) return;
+    this.selected = i;
+    this.onSelect(i);
+    this.invalidate();
+  }
+
   setData(notes: Note[], f0: Float32Array, env: Float32Array, hopSec: number, duration: number) {
-    this.notes = notes;
     this.f0 = f0;
     this.env = env;
     this.hopSec = hopSec;
     this.duration = duration;
-    this.selected = -1;
-    this.scrollX = 0;
     this.playhead = 0;
-    this.pps = Math.max(40, Math.min(400, (this.w - KEYW - 20) / Math.max(1, duration)));
-    if (notes.length) {
+    this.frameShift = null;
+    this.setNotes(notes, -1);
+    this.fit();
+  }
+
+  /** Replace the notes (after an edit that changed their structure) without moving the view. */
+  setNotes(notes: Note[], select = this.selected) {
+    this.notes = notes;
+    this.noteOf = new Int32Array(this.f0.length).fill(-1);
+    notes.forEach((n, i) => this.noteOf.fill(i, n.start, Math.min(n.end, this.noteOf.length)));
+    this.selected = -1;
+    this.select(Math.min(select, notes.length - 1));
+    this.invalidate();
+  }
+
+  /** Zoom to show the whole take and centre on the notes. */
+  fit() {
+    this.scrollX = 0;
+    this.pps = Math.max(20, Math.min(400, (this.w - KEYW - 20) / Math.max(1, this.duration)));
+    if (this.notes.length) {
       let lo = Infinity;
       let hi = -Infinity;
-      for (const n of notes) {
+      for (const n of this.notes) {
         lo = Math.min(lo, n.pitch);
         hi = Math.max(hi, n.pitch);
       }
       this.top = (lo + hi) / 2 + (this.h - RULER) / this.rowH / 2;
     }
+    this.clampScroll();
+    this.invalidate();
+  }
+
+  zoom(factor: number, anchorX = (this.w + KEYW) / 2) {
+    const t = this.tOf(anchorX);
+    this.pps = Math.max(20, Math.min(2000, this.pps * factor));
+    this.scrollX = t * this.pps - (anchorX - KEYW);
+    this.clampScroll();
     this.invalidate();
   }
 
@@ -122,7 +178,7 @@ export class PianoRoll {
       const n = this.notes[i];
       const x0 = this.xOf(n.start * this.hopSec);
       const x1 = this.xOf(n.end * this.hopSec);
-      const yc = this.yOf(n.pitch + n.shift);
+      const yc = this.yOf(n.pitch + this.shiftOf(n));
       if (x >= x0 && x <= x1 && Math.abs(y - yc) <= this.rowH / 2 + 2) return i;
     }
     return -1;
@@ -137,10 +193,10 @@ export class PianoRoll {
     e.preventDefault();
     const { x } = this.pos(e);
     if (e.ctrlKey || e.metaKey) {
-      const t = this.tOf(x);
-      this.pps = Math.max(20, Math.min(2000, this.pps * Math.exp(-e.deltaY * 0.002)));
-      this.scrollX = t * this.pps - (x - KEYW);
-    } else if (e.shiftKey) {
+      this.zoom(Math.exp(-e.deltaY * 0.002), x);
+      return;
+    }
+    if (e.shiftKey) {
       this.scrollX += e.deltaY || e.deltaX;
     } else {
       this.scrollX += e.deltaX;
@@ -153,39 +209,78 @@ export class PianoRoll {
   private onDown(e: PointerEvent) {
     const { x, y } = this.pos(e);
     const i = this.hit(x, y);
-    this.selected = i;
+    this.select(i);
+    if (i >= 0 && this.tool === 'cut') {
+      this.onCut(i, Math.round(this.tOf(x) / this.hopSec));
+      return;
+    }
     if (i >= 0) {
       const note = this.notes[i];
-      this.drag = { note, y, target: note.pitch + note.shift, moved: false };
+      // Dragging moves the note in absolute pitch; the edit is whatever is needed on top of
+      // the automatic correction to land there.
+      const base = note.pitch + this.shiftOf(note) - note.shift;
+      this.drag = { index: i, y, base, start: base + note.shift, startShift: note.shift, moved: false };
       this.canvas.setPointerCapture(e.pointerId);
     } else if (x >= KEYW && this.duration > 0) {
-      this.onSeek(Math.max(0, Math.min(this.duration, this.tOf(x))));
+      // Empty space or the ruler: grab the playhead and drag it.
+      this.scrubbing = true;
+      this.canvas.setPointerCapture(e.pointerId);
+      this.onSeekStart();
+      this.scrub(x);
     }
     this.invalidate();
   }
 
+  private scrub(x: number) {
+    // Nudge the view along when the pointer runs past either edge.
+    if (x > this.w - 30) this.scrollX += (x - (this.w - 30)) * 0.6;
+    else if (x < KEYW + 30) this.scrollX -= (KEYW + 30 - x) * 0.6;
+    this.clampScroll();
+    this.onSeek(Math.max(0, Math.min(this.duration, this.tOf(x))));
+  }
+
   private onMove(e: PointerEvent) {
     const { x, y } = this.pos(e);
+    if (this.scrubbing) {
+      this.scrub(x);
+      return;
+    }
     if (!this.drag) {
-      this.canvas.style.cursor = this.hit(x, y) >= 0 ? 'ns-resize' : 'default';
+      const over = this.hit(x, y);
+      this.canvas.style.cursor =
+        this.tool === 'cut' && over >= 0
+          ? 'crosshair'
+          : over >= 0
+            ? 'ns-resize'
+            : y < RULER && x >= KEYW
+              ? 'ew-resize'
+              : 'default';
+      if (this.tool === 'cut' && (over !== this.hoverNote || over >= 0)) this.invalidate();
+      this.hoverNote = over;
+      this.hoverX = x;
       return;
     }
     const d = this.drag;
-    let target = d.target + (d.y - y) / this.rowH;
+    const note = this.notes[d.index];
+    let target = d.start + (d.y - y) / this.rowH;
     if (!e.altKey) target = this.snap(target);
-    let shift = target - d.note.pitch;
-    shift = Math.max(-MAX_SHIFT, Math.min(MAX_SHIFT, shift));
-    if (shift !== d.note.shift) {
+    const shift = Math.max(-MAX_SHIFT, Math.min(MAX_SHIFT, target - d.base));
+    if (shift !== note.shift) {
       if (!d.moved) {
         d.moved = true;
         this.onEditStart();
       }
-      d.note.shift = shift;
+      note.shift = shift;
       this.invalidate();
     }
   }
 
   private onUp(_e: PointerEvent) {
+    if (this.scrubbing) {
+      this.scrubbing = false;
+      this.onSeekEnd();
+      return;
+    }
     if (!this.drag) return;
     const moved = this.drag.moved;
     this.drag = null;
@@ -193,6 +288,7 @@ export class PianoRoll {
   }
 
   private onDblClick(e: MouseEvent) {
+    if (this.tool === 'cut') return;
     const { x, y } = this.pos(e);
     const i = this.hit(x, y);
     if (i < 0 || this.notes[i].shift === 0) return;
@@ -252,7 +348,7 @@ export class PianoRoll {
       const x0 = this.xOf(a * this.hopSec);
       const x1 = this.xOf(b * this.hopSec);
       if (x1 < KEYW || x0 > w || b - a < 2) return;
-      const cy = this.yOf(n.pitch + n.shift);
+      const cy = this.yOf(n.pitch + this.shiftOf(n));
       g.fillStyle = 'rgba(205,228,245,0.88)';
       g.beginPath();
       for (let f = a; f < b; f++) g.lineTo(this.xOf(f * this.hopSec), cy - this.env[f] * maxH);
@@ -266,7 +362,8 @@ export class PianoRoll {
       const x0 = this.xOf(n.start * this.hopSec);
       const x1 = this.xOf(n.end * this.hopSec);
       if (x1 < KEYW || x0 > w) return;
-      const edited = n.shift !== 0;
+      const total = this.shiftOf(n);
+      const edited = Math.abs(total) > 0.001;
       const sel = i === this.selected;
       if (edited) {
         g.strokeStyle = 'rgba(255,170,90,0.5)';
@@ -274,7 +371,7 @@ export class PianoRoll {
         g.strokeRect(x0 + 0.5, this.yOf(n.pitch) - rowH / 2 + 1.5, x1 - x0, rowH - 3);
         g.setLineDash([]);
       }
-      const y = this.yOf(n.pitch + n.shift) - rowH / 2 + 1;
+      const y = this.yOf(n.pitch + total) - rowH / 2 + 1;
       g.fillStyle = sel ? 'rgba(255,175,100,0.9)' : edited ? 'rgba(255,160,80,0.72)' : 'rgba(255,165,95,0.5)';
       this.roundRect(x0, y, x1 - x0, rowH - 2, 2);
       g.fill();
@@ -285,11 +382,12 @@ export class PianoRoll {
     });
 
     // Pitch curve: brown outline with an orange core. Continuous, runs between notes.
-    const noteOf = new Int32Array(this.f0.length).fill(-1);
-    this.notes.forEach((n, i) => noteOf.fill(i, n.start, n.end));
+    const noteOf = this.noteOf;
+    const dragged = this.drag && this.drag.moved ? this.drag : null;
+    const dragExtra = dragged ? this.notes[dragged.index].shift - dragged.startShift : 0;
     const fA = Math.max(0, Math.floor(this.tOf(KEYW) / this.hopSec) - 1);
     const fB = Math.min(this.f0.length, Math.ceil(t1 / this.hopSec) + 1);
-    const maxGap = Math.round(0.4 / this.hopSec);
+    const maxGap = Math.round(0.12 / this.hopSec);
     const path = new Path2D();
     let pen = false;
     let last = -Infinity;
@@ -300,9 +398,10 @@ export class PianoRoll {
       if (!(hz > 0)) continue;
       if (f - last > maxGap) pen = false;
       last = f;
-      const ni = noteOf[f];
+      let shift = this.frameShift ? this.frameShift[f] : 0;
+      if (dragged && noteOf[f] === dragged.index) shift += dragExtra;
       const px = this.xOf(f * this.hopSec);
-      const py = this.yOf(hzToMidi(hz) + (ni >= 0 ? this.notes[ni].shift : 0));
+      const py = this.yOf(hzToMidi(hz) + shift);
       if (!pen) path.moveTo(px, py);
       else path.quadraticCurveTo(prevX, prevY, (prevX + px) / 2, (prevY + py) / 2);
       prevX = px;
@@ -318,6 +417,19 @@ export class PianoRoll {
     g.lineWidth = 1.8;
     g.stroke(path);
     g.lineWidth = 1;
+
+    // Cut tool: preview where the slice would fall.
+    if (this.tool === 'cut' && this.hoverNote >= 0) {
+      const n = this.notes[this.hoverNote];
+      const cy = this.yOf(n.pitch + this.shiftOf(n));
+      g.strokeStyle = 'rgba(255,255,255,0.9)';
+      g.setLineDash([4, 3]);
+      g.beginPath();
+      g.moveTo(Math.round(this.hoverX) + 0.5, cy - rowH * 1.4);
+      g.lineTo(Math.round(this.hoverX) + 0.5, cy + rowH * 1.4);
+      g.stroke();
+      g.setLineDash([]);
+    }
 
     // Playhead: thin light line.
     const px = Math.round(this.xOf(this.playhead)) - 0.5;

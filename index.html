@@ -8,23 +8,114 @@
   <body>
     <header id="toolbar">
       <strong class="logo">webtone</strong>
-      <button id="open">Open</button>
-      <button id="demo">Demo</button>
-      <span class="sep"></span>
-      <button id="play" disabled>Play</button>
-      <select id="key" title="Key"></select>
-      <select id="scale" title="Scale"></select>
-      <button id="snap" disabled>Snap all</button>
-      <button id="reset" disabled>Reset</button>
-      <button id="undo" disabled>Undo</button>
-      <span class="sep"></span>
-      <button id="export" disabled>Export WAV</button>
-      <span id="status"></span>
+
+      <div class="group">
+        <button id="open" data-action="open" title="Open an audio file (Ctrl+O)">Open</button>
+        <button id="record" data-action="record" title="Record from your microphone">● Record</button>
+        <button id="demo" data-action="demo" title="Load an example melody">Demo</button>
+      </div>
+
+      <div class="group">
+        <button id="play" disabled title="Play / stop (Space)">▶ Play</button>
+        <button id="ab" disabled aria-pressed="false" title="Hear the original instead of the corrected audio (B)">Original</button>
+      </div>
+
+      <div class="group" title="Notes snap to this scale">
+        <select id="key" aria-label="Key"></select>
+        <select id="scale" aria-label="Scale"></select>
+      </div>
+
+      <div class="group knobs">
+        <label title="Pull every note towards the nearest note of the scale">
+          Center
+          <input id="center" type="range" min="0" max="100" value="0" />
+          <output id="centerVal">0%</output>
+        </label>
+        <label title="Smooth out the natural wobble inside each note (vibrato, drift)">
+          Variation
+          <input id="variation" type="range" min="0" max="100" value="0" />
+          <output id="variationVal">0%</output>
+        </label>
+        <label title="How quickly pitch glides from one note to the next">
+          Transition
+          <input id="transition" type="range" min="0" max="200" value="25" />
+          <output id="transitionVal">25 ms</output>
+        </label>
+      </div>
+
+      <div class="group">
+        <button id="cut" disabled aria-pressed="false" title="Cut tool (C): click a note to split it">✂ Cut</button>
+        <button id="merge" disabled title="Join the selected note with its neighbour (G)">Merge</button>
+        <button id="delete" disabled title="Remove the selected note (Delete)">Delete</button>
+      </div>
+
+      <div class="group">
+        <button id="undo" disabled title="Undo (Ctrl+Z)">↶</button>
+        <button id="redo" disabled title="Redo (Ctrl+Shift+Z)">↷</button>
+        <button id="reset" disabled title="Reset all edits and controls">Reset</button>
+      </div>
+
+      <div class="group">
+        <button id="zoomOut" title="Zoom out (-)">−</button>
+        <button id="zoomIn" title="Zoom in (+)">+</button>
+        <button id="fit" title="Fit the whole take (0)">Fit</button>
+      </div>
+
+      <button id="export" disabled title="Download the corrected audio as a WAV file">Export WAV</button>
+      <button id="help" title="Help and shortcuts (?)">?</button>
+      <span id="status" role="status"></span>
       <input id="file" type="file" accept="audio/*" hidden />
     </header>
+
     <main id="stage">
       <canvas id="roll"></canvas>
-      <div id="hint">Drop an audio file here, or press <b>Open</b> / <b>Demo</b></div>
+
+      <div id="hint">
+        <div class="card">
+          <h2>Drop an audio file here</h2>
+          <p>A solo vocal works best: one voice, no backing track.</p>
+          <div class="row">
+            <button data-action="open">Open a file</button>
+            <button data-action="record">● Record</button>
+            <button data-action="demo">Try the demo</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="busy" hidden>
+        <div class="card"><div class="spinner"></div><span id="busyText">Analysing…</span></div>
+      </div>
+
+      <aside id="helpPanel" hidden>
+        <button id="helpClose" aria-label="Close help">×</button>
+        <h3>How to use</h3>
+        <ol>
+          <li><b>Load</b> a vocal: open a file, record, or try the demo.</li>
+          <li>Each sung note appears as an orange block. The red line is the pitch that was sung.</li>
+          <li><b>Drag a note up or down</b> to change its pitch. It snaps to the scale; hold <kbd>Alt</kbd> to go in between.</li>
+          <li>Turn up <b>Center</b> to pull every note to the nearest scale note at once. <b>Variation</b> removes vibrato and wobble. <b>Transition</b> sets how fast pitch moves between notes.</li>
+          <li>Press <kbd>Space</kbd> to listen. <b>Original</b> lets you compare with the untouched audio.</li>
+          <li><b>Export WAV</b> when you're happy.</li>
+        </ol>
+        <h3>Fixing wrong notes</h3>
+        <ul>
+          <li><b>✂ Cut</b> (<kbd>C</kbd>), then click a note to split it.</li>
+          <li><b>Merge</b> (<kbd>G</kbd>) joins the selected note with its neighbour.</li>
+          <li><kbd>Delete</kbd> removes a note, leaving that part untouched.</li>
+        </ul>
+        <h3>Shortcuts</h3>
+        <table>
+          <tr><td><kbd>Space</kbd></td><td>Play / stop</td></tr>
+          <tr><td><kbd>↑</kbd> <kbd>↓</kbd></td><td>Move the selected note one scale step</td></tr>
+          <tr><td><kbd>Backspace</kbd> / double-click</td><td>Reset the selected note</td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>Z</kbd> / <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd></td><td>Undo / redo</td></tr>
+          <tr><td><kbd>B</kbd></td><td>Switch between original and corrected</td></tr>
+          <tr><td><kbd>Home</kbd></td><td>Playhead to the start</td></tr>
+          <tr><td><kbd>+</kbd> <kbd>−</kbd> <kbd>0</kbd></td><td>Zoom in / out / fit</td></tr>
+          <tr><td>Drag the ruler</td><td>Move the playhead</td></tr>
+          <tr><td>Wheel</td><td>Scroll pitch; <kbd>Shift</kbd> time; <kbd>Ctrl</kbd> zoom</td></tr>
+        </table>
+      </aside>
     </main>
     <script type="module" src="/src/main.ts"></script>
   </body>
