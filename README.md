@@ -27,6 +27,8 @@ Deployed with GitHub Pages: https://smackabooble.github.io/webtone/
 
 Fixing detection: **Cut** (`C`) then click a note to split it, **Merge** (`G`) joins it with its neighbour, **Delete** removes it.
 
+Fine adjustment: the **Line** tool (`P`) bends the pitch line itself, including the glides between notes. Drag up or down on the line; **Width** sets how much of it moves, **Shift** makes it a quarter as sensitive, and a double-click straightens that part again.
+
 Other controls: drag the ruler to move the playhead; wheel scrolls pitch, **Shift** + wheel scrolls time, **Ctrl** + wheel zooms (or use the zoom buttons, `+`, `-`, `0`); arrow keys move the selected note one scale step; **Backspace** or double-click resets a note; **Ctrl+Z** / **Ctrl+Shift+Z** undo and redo; **?** shows help.
 
 ## How it works

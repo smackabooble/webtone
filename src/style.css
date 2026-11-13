@@ -90,6 +90,16 @@ button.recording {
     opacity: 0.7;
   }
 }
+.mini {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted);
+}
+.mini input[type='range'] {
+  width: 64px;
+  accent-color: var(--accent);
+}
 .knobs {
   gap: 12px;
 }

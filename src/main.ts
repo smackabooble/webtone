@@ -1,5 +1,5 @@
 import './style.css';
-import { PianoRoll } from './ui/pianoroll';
+import { PianoRoll, type Tool } from './ui/pianoroll';
 import { segment, notePitch, type Note } from './dsp/segment';
 import { psola } from './dsp/psola';
 import type { Analysis } from './dsp/analyze';
@@ -26,6 +26,8 @@ let analysis: Analysis | null = null;
 let notes: Note[] = [];
 let fileName = 'webtone';
 let bypass = false;
+/** Hand edits to the pitch line, in semitones per analysis frame. */
+let curve = new Float32Array(0);
 
 const params: Params = { center: 0, variation: 0, transitionMs: 25, mask: scaleMask(0, SCALES.Chromatic) };
 
@@ -65,9 +67,13 @@ function setBusy(text: string | null) {
 
 // ---------- Undo / redo ----------
 
-const undoStack: Note[][] = [];
-const redoStack: Note[][] = [];
-const snapshot = () => notes.map((n) => ({ ...n }));
+interface Snap {
+  notes: Note[];
+  curve: Float32Array;
+}
+const undoStack: Snap[] = [];
+const redoStack: Snap[] = [];
+const snapshot = (): Snap => ({ notes: notes.map((n) => ({ ...n })), curve: curve.slice() });
 
 function pushUndo() {
   undoStack.push(snapshot());
@@ -76,8 +82,9 @@ function pushUndo() {
   updateButtons();
 }
 
-function restore(s: Note[]) {
-  notes = s.map((n) => ({ ...n }));
+function restore(s: Snap) {
+  notes = s.notes.map((n) => ({ ...n }));
+  curve.set(s.curve);
   roll.setNotes(notes);
   commit();
 }
@@ -98,7 +105,7 @@ function redo() {
 
 function updateButtons() {
   const loaded = original !== null;
-  for (const id of ['play', 'ab', 'export', 'cut', 'reset']) btn(id).disabled = !loaded;
+  for (const id of ['play', 'ab', 'export', 'cut', 'curveTool', 'reset']) btn(id).disabled = !loaded;
   const sel = roll.selectedIndex;
   btn('merge').disabled = !loaded || notes.length < 2 || sel < 0;
   btn('delete').disabled = !loaded || sel < 0;
@@ -164,6 +171,8 @@ async function loadBuffer(buf: AudioBuffer) {
   setBypass(false);
   setTool('select');
   resetControls();
+  curve = new Float32Array(result.f0.length);
+  roll.curve = curve;
   roll.setData(notes, result.f0, result.env, result.hopSec, buf.duration);
   refreshShifts();
   setBusy(null);
@@ -177,19 +186,19 @@ async function loadBuffer(buf: AudioBuffer) {
 /** Update the pitch curve shown on the roll from the current notes and controls. */
 function refreshShifts() {
   if (!analysis) return;
-  roll.frameShift = frameShifts(notes, analysis.f0, analysis.hopSec, params);
+  roll.frameShift = frameShifts(notes, analysis.f0, analysis.hopSec, params, curve);
   roll.invalidate();
 }
 
 function render() {
   if (!original || !analysis) return;
-  if (isNeutral(notes, params)) {
+  if (isNeutral(notes, params, curve)) {
     rendered = original;
     return;
   }
   const { f0, hopSec, marks } = analysis;
   const sr = original.sampleRate;
-  const shifts = frameShifts(notes, f0, hopSec, params);
+  const shifts = frameShifts(notes, f0, hopSec, params, curve);
   const ratio = new Float32Array(shifts.length);
   for (let i = 0; i < ratio.length; i++) ratio[i] = Math.pow(2, shifts[i] / 12);
   const framesPerSample = 1 / (sr * hopSec);
@@ -410,11 +419,19 @@ roll.onSelect = () => {
   setStatus(baseStatus());
 };
 
-function setTool(tool: 'select' | 'cut') {
+function setTool(tool: Tool) {
   roll.tool = tool;
   btn('cut').setAttribute('aria-pressed', String(tool === 'cut'));
+  btn('curveTool').setAttribute('aria-pressed', String(tool === 'curve'));
+  roll.canvasCursor('default');
   roll.invalidate();
 }
+
+roll.onCurveLive = refreshShifts;
+slider('brush').oninput = () => {
+  roll.brushSec = Number(slider('brush').value) / 1000;
+  roll.invalidate();
+};
 
 roll.onCut = (i, frame) => {
   if (!analysis) return;
@@ -571,13 +588,15 @@ btn('ab').onclick = () => {
   flash(bypass ? 'Playing the original' : 'Playing the corrected audio');
 };
 btn('cut').onclick = () => setTool(roll.tool === 'cut' ? 'select' : 'cut');
+btn('curveTool').onclick = () => setTool(roll.tool === 'curve' ? 'select' : 'curve');
 btn('merge').onclick = mergeSelected;
 btn('delete').onclick = deleteSelected;
 btn('undo').onclick = undo;
 btn('redo').onclick = redo;
 btn('reset').onclick = () => {
-  if (notes.some((n) => n.shift !== 0)) pushUndo();
+  if (notes.some((n) => n.shift !== 0) || curve.some((v) => v !== 0)) pushUndo();
   for (const n of notes) n.shift = 0;
+  curve.fill(0);
   resetControls();
   commit();
 };
@@ -652,6 +671,8 @@ window.addEventListener('keydown', (e) => {
     resetSelected();
   } else if (key === 'c') {
     setTool(roll.tool === 'cut' ? 'select' : 'cut');
+  } else if (key === 'p') {
+    setTool(roll.tool === 'curve' ? 'select' : 'curve');
   } else if (key === 'g') {
     mergeSelected();
   } else if (key === 'b') {
