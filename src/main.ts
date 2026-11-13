@@ -1,5 +1,7 @@
 import './style.css';
 import { PianoRoll, type Tool } from './ui/pianoroll';
+import { Knob } from './ui/knob';
+import { barBeat, clampBpm, formatTime } from './dsp/grid';
 import { segment, notePitch, type Note } from './dsp/segment';
 import { psola } from './dsp/psola';
 import type { Analysis } from './dsp/analyze';
@@ -106,6 +108,7 @@ function redo() {
 function updateButtons() {
   const loaded = original !== null;
   for (const id of ['play', 'ab', 'export', 'cut', 'curveTool', 'reset']) btn(id).disabled = !loaded;
+  document.querySelectorAll<HTMLButtonElement>('[data-action="export"]').forEach((b) => (b.disabled = !loaded));
   const sel = roll.selectedIndex;
   btn('merge').disabled = !loaded || notes.length < 2 || sel < 0;
   btn('delete').disabled = !loaded || sel < 0;
@@ -258,13 +261,13 @@ function play() {
     if (source !== node) return;
     source = null;
     playOffset = 0;
-    btn('play').textContent = '▶ Play';
-    roll.setPlayhead(0, false);
+    setPlayIcon(false);
+    setPlayhead(0, false);
   };
   node.start(0, playOffset);
   playStartedAt = a.currentTime;
   source = node;
-  btn('play').textContent = '■ Stop';
+  setPlayIcon(true);
 }
 
 function stop() {
@@ -274,7 +277,19 @@ function stop() {
   source = null;
   node.onended = null;
   node.stop();
-  btn('play').textContent = '▶ Play';
+  setPlayIcon(false);
+}
+
+function setPlayIcon(playing: boolean) {
+  btn('play').textContent = playing ? '■' : '▶';
+  btn('play').setAttribute('aria-label', playing ? 'Stop' : 'Play');
+}
+
+/** Move the playhead on the roll and update the time and bar readout. */
+function setPlayhead(t: number, follow: boolean) {
+  roll.setPlayhead(t, follow);
+  const { bar, beat } = barBeat(t, bpm);
+  $('readout').innerHTML = `${formatTime(t)}<small>${bar}.${beat}</small>`;
 }
 
 function togglePlay() {
@@ -342,7 +357,7 @@ function scrubStart() {
 
 function scrub(t: number) {
   playOffset = t;
-  roll.setPlayhead(t, false);
+  setPlayhead(t, false);
 }
 
 function scrubEnd() {
@@ -353,7 +368,7 @@ function scrubEnd() {
 }
 
 function tick() {
-  if (isPlaying()) roll.setPlayhead(currentTime(), true);
+  if (isPlaying()) setPlayhead(currentTime(), true);
   requestAnimationFrame(tick);
 }
 requestAnimationFrame(tick);
@@ -383,28 +398,67 @@ keySel.disabled = true;
 
 // ---------- Controls (Center / Variation / Transition) ----------
 
-function readControls() {
-  params.center = Number(slider('center').value) / 100;
-  params.variation = Number(slider('variation').value) / 100;
-  params.transitionMs = Number(slider('transition').value);
-  $('centerVal').textContent = `${slider('center').value}%`;
-  $('variationVal').textContent = `${slider('variation').value}%`;
-  $('transitionVal').textContent = `${slider('transition').value} ms`;
+function onKnob() {
+  params.center = knobs.center.value / 100;
+  params.variation = knobs.variation.value / 100;
+  params.transitionMs = knobs.transition.value;
+  refreshShifts();
+  scheduleCommit();
 }
 
-for (const id of ['center', 'variation', 'transition']) {
-  slider(id).oninput = () => {
-    readControls();
-    refreshShifts();
-    scheduleCommit();
-  };
-}
+const knobs = {
+  center: new Knob($('knobCenter'), {
+    label: 'Center',
+    title: 'Pull every note towards the nearest note of the scale',
+    min: 0,
+    max: 100,
+    value: 0,
+    format: (v) => `${Math.round(v)}%`,
+    onInput: onKnob,
+  }),
+  variation: new Knob($('knobVariation'), {
+    label: 'Variation',
+    title: 'Smooth out the natural wobble inside each note (vibrato, drift)',
+    min: 0,
+    max: 100,
+    value: 0,
+    format: (v) => `${Math.round(v)}%`,
+    onInput: onKnob,
+  }),
+  transition: new Knob($('knobTransition'), {
+    label: 'Transition',
+    title: 'How quickly pitch glides from one note to the next',
+    min: 0,
+    max: 200,
+    value: 25,
+    format: (v) => `${Math.round(v)} ms`,
+    onInput: onKnob,
+  }),
+};
 
+/** Put the knobs back to their starting values (does not re-render by itself). */
 function resetControls() {
-  slider('center').value = '0';
-  slider('variation').value = '0';
-  slider('transition').value = '25';
-  readControls();
+  for (const k of Object.values(knobs)) k.setQuiet(k.initial);
+  params.center = knobs.center.value / 100;
+  params.variation = knobs.variation.value / 100;
+  params.transitionMs = knobs.transition.value;
+}
+
+// ---------- Tempo ----------
+
+let bpm = 120;
+const bpmInput = $<HTMLInputElement>('bpm');
+bpmInput.onchange = () => {
+  bpm = clampBpm(Number(bpmInput.value));
+  bpmInput.value = String(bpm);
+  roll.bpm = bpm;
+  roll.invalidate();
+  updateSnap();
+  setPlayhead(currentTime(), false);
+};
+$<HTMLSelectElement>('snap').onchange = () => updateSnap();
+function updateSnap() {
+  roll.snapStepSec = Number($<HTMLSelectElement>('snap').value) * (60 / bpm);
 }
 
 // ---------- Editing notes ----------
@@ -421,8 +475,13 @@ roll.onSelect = () => {
 
 function setTool(tool: Tool) {
   roll.tool = tool;
+  btn('selectTool').setAttribute('aria-pressed', String(tool === 'select'));
   btn('cut').setAttribute('aria-pressed', String(tool === 'cut'));
   btn('curveTool').setAttribute('aria-pressed', String(tool === 'curve'));
+  // Options that belong to the active tool.
+  $('optBrush').hidden = tool !== 'curve';
+  $('optSnap').hidden = tool !== 'cut';
+  $('toolOptions').hidden = tool === 'select';
   roll.canvasCursor('default');
   roll.invalidate();
 }
@@ -532,7 +591,8 @@ async function toggleRecord() {
     window.clearInterval(recTimer);
     stream.getTracks().forEach((t) => t.stop());
     recorder = null;
-    btn('record').textContent = '● Record';
+    btn('record').textContent = '●';
+    btn('record').title = 'Record from your microphone';
     btn('record').classList.remove('recording');
     setBusy('Reading recording…');
     try {
@@ -546,7 +606,8 @@ async function toggleRecord() {
     }
   };
   rec.start();
-  btn('record').textContent = '■ Stop recording';
+  btn('record').textContent = '■';
+  btn('record').title = 'Stop recording';
   btn('record').classList.add('recording');
   const t0 = performance.now();
   setStatus('Recording… 0:00');
@@ -571,9 +632,18 @@ const actions: Record<string, () => void> = {
   open: () => fileInput.click(),
   record: () => void toggleRecord(),
   demo: loadDemo,
+  export: exportWav,
 };
 document.querySelectorAll<HTMLElement>('[data-action]').forEach((el) => {
-  el.addEventListener('click', () => actions[el.dataset.action!]());
+  el.addEventListener('click', () => {
+    actions[el.dataset.action!]();
+    fileMenu.open = false;
+  });
+});
+// The File menu closes when you click anywhere else.
+const fileMenu = $<HTMLDetailsElement>('fileMenu');
+document.addEventListener('click', (e) => {
+  if (fileMenu.open && !fileMenu.contains(e.target as Node)) fileMenu.open = false;
 });
 
 fileInput.onchange = () => {
@@ -587,6 +657,7 @@ btn('ab').onclick = () => {
   setBypass(!bypass);
   flash(bypass ? 'Playing the original' : 'Playing the corrected audio');
 };
+btn('selectTool').onclick = () => setTool('select');
 btn('cut').onclick = () => setTool(roll.tool === 'cut' ? 'select' : 'cut');
 btn('curveTool').onclick = () => setTool(roll.tool === 'curve' ? 'select' : 'curve');
 btn('merge').onclick = mergeSelected;
@@ -604,7 +675,7 @@ btn('zoomIn').onclick = () => roll.zoom(1.4);
 btn('zoomOut').onclick = () => roll.zoom(1 / 1.4);
 btn('fit').onclick = () => roll.fit();
 
-btn('export').onclick = () => {
+function exportWav() {
   if (!original) return;
   window.clearTimeout(renderTimer);
   render();
@@ -617,7 +688,7 @@ btn('export').onclick = () => {
   a.download = `${fileName}-tuned.wav`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
-};
+}
 
 // ---------- Help ----------
 
@@ -644,6 +715,9 @@ window.addEventListener('keydown', (e) => {
   } else if (mod && key === 'o') {
     e.preventDefault();
     fileInput.click();
+  } else if (mod && key === 'e') {
+    e.preventDefault();
+    exportWav();
   } else if (mod || e.altKey) {
     return;
   } else if (e.code === 'Space') {
@@ -655,6 +729,7 @@ window.addEventListener('keydown', (e) => {
     toggleHelp();
   } else if (key === 'escape') {
     toggleHelp(false);
+    fileMenu.open = false;
     setTool('select');
   } else if (!original) {
     return;
@@ -671,6 +746,8 @@ window.addEventListener('keydown', (e) => {
     resetSelected();
   } else if (key === 'c') {
     setTool(roll.tool === 'cut' ? 'select' : 'cut');
+  } else if (key === 'v') {
+    setTool('select');
   } else if (key === 'p') {
     setTool(roll.tool === 'curve' ? 'select' : 'curve');
   } else if (key === 'g') {
@@ -703,5 +780,6 @@ window.addEventListener('drop', (e) => {
   if (f) void loadFile(f);
 });
 
-readControls();
 updateButtons();
+updateScale();
+setPlayhead(0, false);
