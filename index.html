@@ -14,7 +14,6 @@
           <span class="app-title">webtone</span>
 
           <sp-action-menu id="fileMenu" size="s" quiet label="File" class="file-menu">
-            <span slot="icon"></span>
             <span slot="label">File</span>
             <sp-menu-item value="open">
               <sp-icon-folder-open slot="icon"></sp-icon-folder-open>
@@ -193,7 +192,7 @@
               <p id="noteInfo" class="note-info">No note selected</p>
               <div class="field-row">
                 <sp-field-label for="noteOffset" size="s">Offset</sp-field-label>
-                <sp-number-field id="noteOffset" size="s" min="-12" max="12" step="0.05" value="0" disabled format-options='{"minimumFractionDigits":2,"maximumFractionDigits":2,"signDisplay":"exceptZero"}' label="Pitch offset in semitones"></sp-number-field>
+                <sp-number-field id="noteOffset" size="s" hide-stepper min="-12" max="12" step="0.05" value="0" disabled format-options='{"minimumFractionDigits":2,"maximumFractionDigits":2,"signDisplay":"exceptZero"}' label="Pitch offset in semitones"></sp-number-field>
                 <span class="unit">st</span>
               </div>
               <sp-action-button id="noteReset" size="s" disabled class="note-reset">

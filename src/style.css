@@ -3,6 +3,56 @@
  * colours, type, spacing and corner radii are Spectrum tokens, and the controls are
  * Spectrum Web Components. Each control has a fixed size so nothing moves when state changes.
  */
+/*
+ * Tones. Spectrum's own grey scale is swapped for blue-slate greys and the accent for orange,
+ * so the app has Newtone's look while still using Spectrum's components and token structure.
+ * The piano roll's colours are --roll-* variables below.
+ */
+sp-theme#theme {
+  --spectrum-gray-50: rgb(16, 24, 31);
+  --spectrum-gray-75: rgb(21, 32, 41);
+  --spectrum-gray-100: rgb(27, 40, 51);
+  --spectrum-gray-200: rgb(36, 52, 66);
+  --spectrum-gray-300: rgb(50, 70, 86);
+  --spectrum-gray-400: rgb(75, 98, 116);
+  --spectrum-gray-500: rgb(108, 131, 149);
+  --spectrum-gray-600: rgb(143, 166, 181);
+  --spectrum-gray-700: rgb(180, 197, 208);
+  --spectrum-gray-800: rgb(215, 225, 231);
+  --spectrum-gray-900: rgb(244, 248, 250);
+
+  --spectrum-accent-background-color-default: rgb(245, 154, 60);
+  --spectrum-accent-background-color-hover: rgb(255, 174, 92);
+  --spectrum-accent-background-color-down: rgb(224, 134, 31);
+  --spectrum-accent-background-color-key-focus: rgb(255, 174, 92);
+  --spectrum-focus-indicator-color: rgb(245, 154, 60);
+
+  /* Piano roll */
+  --roll-bg: #27475a;
+  --roll-row-dark: rgba(8, 22, 30, 0.32);
+  --roll-row-line: rgba(8, 22, 30, 0.22);
+  --roll-row-line-c: rgba(8, 22, 30, 0.55);
+  --roll-grid0: rgba(8, 22, 30, 0.75);
+  --roll-grid1: rgba(8, 22, 30, 0.4);
+  --roll-grid2: rgba(8, 22, 30, 0.16);
+  --roll-blob: rgba(205, 228, 245, 0.88);
+  --roll-ruler: #0f2230;
+  --roll-ruler-text: #8fb0be;
+  --roll-border: #0b1920;
+  --roll-playhead: rgba(225, 235, 240, 0.85);
+  --roll-marker: #f59a3c;
+  --roll-gutter: #16262f;
+  --roll-key-black0: #2b3a43;
+  --roll-key-black1: #0e171c;
+  --roll-key-black-out: #18232a;
+  --roll-key-white0: #f4f7f8;
+  --roll-key-white1: #c9d2d6;
+  --roll-key-white-out0: #9aa5aa;
+  --roll-key-white-out1: #7d888d;
+  --roll-key-edge: #7e8b91;
+  --roll-key-label: #5d6e76;
+}
+
 html,
 body {
   height: 100%;
@@ -98,10 +148,14 @@ sp-theme {
   font-family: var(--spectrum-code-font-family-stack);
   font-size: var(--spectrum-font-size-100);
   font-variant-numeric: tabular-nums;
+  line-height: 1;
+  padding-top: 3px;
   white-space: nowrap;
   overflow: hidden;
 }
 #rdBar {
+  position: relative;
+  top: -1px;
   color: var(--spectrum-gray-700);
   font-size: var(--spectrum-font-size-75);
   text-align: right;
@@ -133,6 +187,10 @@ sp-theme {
 }
 .export {
   width: 84px;
+  --mod-button-content-color-default: #1a1106;
+  --mod-button-content-color-hover: #1a1106;
+  --mod-button-content-color-down: #1a1106;
+  --mod-button-content-color-focus: #1a1106;
 }
 
 /* ---------- Body ---------- */

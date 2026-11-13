@@ -810,6 +810,37 @@ window.addEventListener('drop', (e) => {
   if (f) void loadFile(f);
 });
 
+/**
+ * Spectrum's number fields left-align their value and its action menu always shows a "more"
+ * icon. Both are fixed with a small stylesheet inside each component, once it has rendered.
+ */
+function styleInside(host: HTMLElement | null | undefined, css: string) {
+  const root = host?.shadowRoot;
+  if (!root) return;
+  const sheet = new CSSStyleSheet();
+  sheet.replaceSync(css);
+  root.adoptedStyleSheets = [...root.adoptedStyleSheets, sheet];
+}
+void (async () => {
+  await Promise.all(['sp-number-field', 'sp-slider', 'sp-action-menu'].map((n) => customElements.whenDefined(n)));
+  const centre = 'input.input { text-align: center; padding-block: 6px 7px; }';
+  const fields = [$('bpm'), $('noteOffset')];
+  for (const f of fields) {
+    await (f as HTMLElement & { updateComplete?: Promise<unknown> }).updateComplete;
+    styleInside(f, centre);
+  }
+  for (const id of ['sCenter', 'sVariation', 'sTransition', 'sBrush']) {
+    const slider = $(id) as HTMLElement & { updateComplete?: Promise<unknown> };
+    await slider.updateComplete;
+    const inner = slider.shadowRoot?.querySelector('sp-number-field') as (HTMLElement & { updateComplete?: Promise<unknown> }) | null;
+    await inner?.updateComplete;
+    styleInside(inner, centre);
+  }
+  const menu = $('fileMenu') as HTMLElement & { updateComplete?: Promise<unknown> };
+  await menu.updateComplete;
+  styleInside(menu, 'sp-icon-more { display: none; } #button { width: 100%; }');
+})();
+
 // The roll draws with Spectrum's colours: read them once the theme's styles are in place.
 void customElements.whenDefined('sp-theme').then(async () => {
   const theme = $('theme') as HTMLElement & { updateComplete?: Promise<unknown> };
