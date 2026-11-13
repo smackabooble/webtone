@@ -333,6 +333,7 @@ function scrubStart() {
 
 function scrub(t: number) {
   playOffset = t;
+  lastScrubMove = performance.now();
   roll.setPlayhead(t, false);
 }
 
