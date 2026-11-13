@@ -281,7 +281,7 @@ function stop() {
 }
 
 function setPlayIcon(playing: boolean) {
-  btn('play').textContent = playing ? '■' : '▶';
+  btn('play').toggleAttribute('data-playing', playing);
   btn('play').setAttribute('aria-label', playing ? 'Stop' : 'Play');
 }
 
@@ -289,7 +289,8 @@ function setPlayIcon(playing: boolean) {
 function setPlayhead(t: number, follow: boolean) {
   roll.setPlayhead(t, follow);
   const { bar, beat } = barBeat(t, bpm);
-  $('readout').innerHTML = `${formatTime(t)}<small>${bar}.${beat}</small>`;
+  $('rdTime').textContent = formatTime(t);
+  $('rdBar').textContent = `${bar}.${beat}`;
 }
 
 function togglePlay() {
@@ -591,7 +592,6 @@ async function toggleRecord() {
     window.clearInterval(recTimer);
     stream.getTracks().forEach((t) => t.stop());
     recorder = null;
-    btn('record').textContent = '●';
     btn('record').title = 'Record from your microphone';
     btn('record').classList.remove('recording');
     setBusy('Reading recording…');
@@ -606,7 +606,6 @@ async function toggleRecord() {
     }
   };
   rec.start();
-  btn('record').textContent = '■';
   btn('record').title = 'Stop recording';
   btn('record').classList.add('recording');
   const t0 = performance.now();

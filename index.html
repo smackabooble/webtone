@@ -7,10 +7,10 @@
   </head>
   <body>
     <header id="toolbar">
-      <strong class="logo">webtone</strong>
+      <span class="logo">webtone</span>
 
       <details id="fileMenu" class="menu">
-        <summary>File</summary>
+        <summary class="btn">File</summary>
         <div class="menu-list">
           <button data-action="open">Open audio…<kbd>Ctrl O</kbd></button>
           <button data-action="record">Record from microphone</button>
@@ -20,72 +20,91 @@
         </div>
       </details>
 
-      <div class="group transport">
-        <button id="record" data-action="record" class="round rec" title="Record from your microphone" aria-label="Record">●</button>
-        <button id="play" class="round play" disabled title="Play / stop (Space)" aria-label="Play">▶</button>
-        <output id="readout" class="readout" title="Time and bar.beat">0:00.00<small>1.1</small></output>
-        <label class="bpm" title="Tempo. Sets the bars and beats grid, and what the Cut tool snaps to.">
-          <input id="bpm" type="number" min="30" max="300" step="1" value="120" inputmode="decimal" aria-label="Tempo in beats per minute" />
-          <span>BPM</span>
-        </label>
-        <button id="ab" disabled aria-pressed="false" title="Hear the original instead of the corrected audio (B)">Original</button>
+      <i class="sep"></i>
+
+      <div class="segment" role="group" aria-label="Transport">
+        <button id="record" data-action="record" class="btn icon rec" title="Record from your microphone" aria-label="Record">
+          <svg viewBox="0 0 20 20" class="on-idle"><circle cx="10" cy="10" r="5" /></svg>
+          <svg viewBox="0 0 20 20" class="on-active"><rect x="5.5" y="5.5" width="9" height="9" rx="1.5" /></svg>
+        </button>
+        <button id="play" class="btn icon play" disabled title="Play / stop (Space)" aria-label="Play">
+          <svg viewBox="0 0 20 20" class="on-idle"><path d="M6.5 4.5l9 5.5-9 5.5z" /></svg>
+          <svg viewBox="0 0 20 20" class="on-active"><rect x="5.5" y="5.5" width="9" height="9" rx="1.5" /></svg>
+        </button>
       </div>
 
+      <output id="readout" class="readout" title="Time, and bar.beat">
+        <span id="rdTime">0:00.00</span><span id="rdBar">1.1</span>
+      </output>
+
+      <label class="field bpm" title="Tempo. Sets the bars and beats grid, and what the Cut tool snaps to.">
+        <input id="bpm" type="number" min="30" max="300" step="1" value="120" inputmode="decimal" aria-label="Tempo in beats per minute" />
+        <span>BPM</span>
+      </label>
+
+      <button id="ab" class="btn toggle" disabled aria-pressed="false" title="Hear the original instead of the corrected audio (B)">Original</button>
+
+      <i class="sep"></i>
+
       <div class="group" title="Notes snap to this key and scale">
-        <select id="key" aria-label="Key"></select>
-        <select id="scale" aria-label="Scale"></select>
+        <select id="key" class="field key" aria-label="Key"></select>
+        <select id="scale" class="field scale" aria-label="Scale"></select>
       </div>
 
       <div class="spacer"></div>
 
-      <div class="group knobs">
+      <div class="knobs">
         <div id="knobCenter"></div>
         <div id="knobVariation"></div>
         <div id="knobTransition"></div>
       </div>
 
+      <i class="sep"></i>
+
       <div class="group">
-        <button id="undo" class="icon" disabled title="Undo (Ctrl+Z)" aria-label="Undo">
-          <svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5" /><path d="M4 9h10a6 6 0 010 12h-4" /></svg>
+        <button id="undo" class="btn icon" disabled title="Undo (Ctrl+Z)" aria-label="Undo">
+          <svg viewBox="0 0 20 20" class="line"><path d="M7.5 4.5L3.5 8.5l4 4" /><path d="M3.5 8.5h8a4.5 4.5 0 010 9H9" /></svg>
         </button>
-        <button id="redo" class="icon" disabled title="Redo (Ctrl+Shift+Z)" aria-label="Redo">
-          <svg viewBox="0 0 24 24"><path d="M15 14l5-5-5-5" /><path d="M20 9H10a6 6 0 000 12h4" /></svg>
+        <button id="redo" class="btn icon" disabled title="Redo (Ctrl+Shift+Z)" aria-label="Redo">
+          <svg viewBox="0 0 20 20" class="line"><path d="M12.5 4.5l4 4-4 4" /><path d="M16.5 8.5h-8a4.5 4.5 0 000 9H11" /></svg>
         </button>
-        <button id="reset" disabled title="Reset all edits and controls">Reset</button>
+        <button id="reset" class="btn text" disabled title="Reset all edits and controls">Reset</button>
       </div>
 
-      <button id="export" class="primary" disabled title="Download the corrected audio as a WAV file (Ctrl+E)" data-action="export">Export</button>
-      <button id="help" class="icon" title="Help and shortcuts (?)" aria-label="Help">?</button>
+      <button id="export" class="btn primary" disabled title="Download the corrected audio as a WAV file (Ctrl+E)" data-action="export">Export</button>
+      <button id="help" class="btn icon" title="Help and shortcuts (?)" aria-label="Help">
+        <svg viewBox="0 0 20 20" class="line"><circle cx="10" cy="10" r="7" /><path d="M7.9 8a2.2 2.2 0 114 1c-.8.6-1.6 1-1.6 2" /><path d="M10.3 14.2h.01" /></svg>
+      </button>
       <input id="file" type="file" accept="audio/*" hidden />
     </header>
 
     <div id="body">
       <nav id="tools" aria-label="Tools">
-        <button id="selectTool" class="icon tool" aria-pressed="true" title="Select (V): drag notes up or down">
-          <svg viewBox="0 0 24 24"><path d="M5 3l14 8-6 2-2 6z" /></svg>
+        <button id="selectTool" class="btn icon tool" aria-pressed="true" title="Select (V): drag notes up or down">
+          <svg viewBox="0 0 20 20" class="line"><path d="M5 3.5l10 5.5-4.2 1.2L9 14.5z" /></svg>
         </button>
-        <button id="cut" class="icon tool" disabled aria-pressed="false" title="Cut (C): click a note to split it">
-          <svg viewBox="0 0 24 24"><circle cx="6" cy="6" r="3" /><circle cx="6" cy="18" r="3" /><path d="M20 4L8.1 15.9M14.5 14.5L20 20M8.1 8.1L12 12" /></svg>
+        <button id="cut" class="btn icon tool" disabled aria-pressed="false" title="Cut (C): click a note to split it">
+          <svg viewBox="0 0 20 20" class="line"><circle cx="5.5" cy="5.5" r="2.2" /><circle cx="5.5" cy="14.5" r="2.2" /><path d="M16.5 3.5L7.2 12.8M12 12l4.5 4.5M7.2 7.2L10 10" /></svg>
         </button>
-        <button id="curveTool" class="icon tool" disabled aria-pressed="false" title="Pitch line (P): drag the line up or down to bend it. Shift = fine, double-click = straighten.">
-          <svg viewBox="0 0 24 24"><path d="M3 15c2-8 4-8 6 0s4 8 6 0 3-5 6-5" /></svg>
+        <button id="curveTool" class="btn icon tool" disabled aria-pressed="false" title="Pitch line (P): drag the line up or down to bend it. Shift = fine, double-click = straighten.">
+          <svg viewBox="0 0 20 20" class="line"><path d="M2.5 12.5c1.6-6 3.2-6 5 0s3.4 6 5 0c1-3 2.5-4 5-4" /></svg>
         </button>
-        <hr />
-        <button id="merge" class="icon" disabled title="Merge the selected note with its neighbour (G)">
-          <svg viewBox="0 0 24 24"><rect x="3" y="9" width="7" height="6" rx="1" /><rect x="14" y="9" width="7" height="6" rx="1" /><path d="M10 12h4" /></svg>
+        <i class="rule"></i>
+        <button id="merge" class="btn icon" disabled title="Merge the selected note with its neighbour (G)">
+          <svg viewBox="0 0 20 20" class="line"><rect x="2.5" y="7" width="6" height="6" rx="1" /><rect x="11.5" y="7" width="6" height="6" rx="1" /><path d="M8.5 10h3" /></svg>
         </button>
-        <button id="delete" class="icon" disabled title="Delete the selected note (Delete)">
-          <svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6" /></svg>
+        <button id="delete" class="btn icon" disabled title="Delete the selected note (Delete)">
+          <svg viewBox="0 0 20 20" class="line"><path d="M3.5 6h13M8 6V3.5h4V6M5.5 6l.8 10.5h7.4L14.5 6" /></svg>
         </button>
-        <hr />
-        <button id="zoomIn" class="icon" title="Zoom in (+)">
-          <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>
+        <i class="rule"></i>
+        <button id="zoomIn" class="btn icon" title="Zoom in (+)">
+          <svg viewBox="0 0 20 20" class="line"><path d="M10 4.5v11M4.5 10h11" /></svg>
         </button>
-        <button id="zoomOut" class="icon" title="Zoom out (-)">
-          <svg viewBox="0 0 24 24"><path d="M5 12h14" /></svg>
+        <button id="zoomOut" class="btn icon" title="Zoom out (-)">
+          <svg viewBox="0 0 20 20" class="line"><path d="M4.5 10h11" /></svg>
         </button>
-        <button id="fit" class="icon" title="Fit the whole take (0)">
-          <svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" /></svg>
+        <button id="fit" class="btn icon" title="Fit the whole take (0)">
+          <svg viewBox="0 0 20 20" class="line"><path d="M3.5 7.5v-4h4M16.5 7.5v-4h-4M3.5 12.5v4h4M16.5 12.5v4h-4" /></svg>
         </button>
       </nav>
 
@@ -94,12 +113,12 @@
 
         <div id="toolOptions" hidden>
           <label id="optBrush" hidden>
-            Line width
+            <span>Line width</span>
             <input id="brush" type="range" min="30" max="400" value="120" />
           </label>
           <label id="optSnap" hidden>
-            Snap cuts to
-            <select id="snap">
+            <span>Snap cuts to</span>
+            <select id="snap" class="field">
               <option value="0">Nothing</option>
               <option value="1">Beat</option>
               <option value="0.5">½ beat</option>
@@ -109,38 +128,40 @@
         </div>
 
         <div id="hint">
-          <div class="card">
+          <div class="empty">
+            <svg viewBox="0 0 48 24" class="empty-icon" aria-hidden="true"><path d="M2 12h4M10 6v12M16 2v20M22 8v8M28 4v16M34 9v6M40 11v2M44 12h2" /></svg>
             <h2>Drop an audio file here</h2>
             <p>A solo vocal works best: one voice, no backing track.</p>
             <div class="row">
-              <button data-action="open">Open a file</button>
-              <button data-action="record">● Record</button>
-              <button data-action="demo">Try the demo</button>
+              <button class="btn outline" data-action="open">Open a file</button>
+              <button class="btn outline" data-action="record">Record</button>
+              <button class="btn outline" data-action="demo">Try the demo</button>
             </div>
           </div>
         </div>
 
         <div id="busy" hidden>
-          <div class="card"><div class="spinner"></div><span id="busyText">Analysing…</span></div>
+          <div class="busy-chip"><div class="spinner"></div><span id="busyText">Analysing…</span></div>
         </div>
 
         <aside id="helpPanel" hidden>
-          <button id="helpClose" class="icon" aria-label="Close help">×</button>
-          <h3>How to use</h3>
+          <button id="helpClose" class="btn icon" aria-label="Close help">
+            <svg viewBox="0 0 20 20" class="line"><path d="M5.5 5.5l9 9M14.5 5.5l-9 9" /></svg>
+          </button>
+          <h3>Getting started</h3>
           <ol>
-            <li><b>Load</b> a vocal from the <b>File</b> menu, record with ●, or try the demo.</li>
+            <li>Load a vocal from <b>File</b>, record with the red button, or try the demo.</li>
             <li>Each sung note is an orange block. The line is the pitch that was sung.</li>
-            <li><b>Drag a note up or down</b> to change its pitch. It snaps to the key and scale; hold <kbd>Alt</kbd> to go in between.</li>
-            <li>The knobs work on every note: <b>Center</b> pulls notes to the scale, <b>Variation</b> removes vibrato and wobble, <b>Transition</b> sets how fast pitch moves between notes. Drag a knob up or down, <kbd>Shift</kbd> for fine, double-click to reset.</li>
-            <li><kbd>Space</kbd> plays. <b>Original</b> compares with the untouched audio.</li>
-            <li><b>Export</b> when you're happy.</li>
+            <li>Drag a note up or down to change its pitch. It snaps to the key and scale; hold <kbd>Alt</kbd> to go in between.</li>
+            <li>The knobs work on every note. <b>Center</b> pulls notes to the scale, <b>Variation</b> removes vibrato and wobble, <b>Transition</b> sets how fast pitch moves between notes. Drag a knob, <kbd>Shift</kbd> for fine, double-click to reset.</li>
+            <li><kbd>Space</kbd> plays. <b>Original</b> compares with the untouched audio. <b>Export</b> when you're happy.</li>
           </ol>
-          <h3>Tools (left side)</h3>
+          <h3>Tools</h3>
           <ul>
-            <li><b>Select</b> (<kbd>V</kbd>): move notes.</li>
-            <li><b>Cut</b> (<kbd>C</kbd>): click a note to split it. Choose what cuts snap to.</li>
-            <li><b>Pitch line</b> (<kbd>P</kbd>): bend the line itself, including glides between notes. <kbd>Shift</kbd> for fine, double-click to straighten.</li>
-            <li><b>Merge</b> (<kbd>G</kbd>) joins the selected note with its neighbour. <kbd>Delete</kbd> removes it.</li>
+            <li><b>Select</b> <kbd>V</kbd> moves notes.</li>
+            <li><b>Cut</b> <kbd>C</kbd> splits a note where you click. Choose what cuts snap to.</li>
+            <li><b>Pitch line</b> <kbd>P</kbd> bends the line itself, including glides between notes. <kbd>Shift</kbd> for fine, double-click to straighten.</li>
+            <li><b>Merge</b> <kbd>G</kbd> joins the selected note with its neighbour. <kbd>Delete</kbd> removes it.</li>
           </ul>
           <h3>Tempo</h3>
           <p>The <b>BPM</b> box sets the bar and beat grid on the ruler. It doesn't change the speed of the audio.</p>
@@ -149,11 +170,11 @@
             <tr><td><kbd>Space</kbd></td><td>Play / stop</td></tr>
             <tr><td><kbd>↑</kbd> <kbd>↓</kbd></td><td>Move the selected note one scale step</td></tr>
             <tr><td><kbd>Backspace</kbd></td><td>Reset the selected note</td></tr>
-            <tr><td><kbd>Ctrl</kbd>+<kbd>Z</kbd></td><td>Undo (<kbd>Shift</kbd> to redo)</td></tr>
+            <tr><td><kbd>Ctrl</kbd> <kbd>Z</kbd></td><td>Undo (add <kbd>Shift</kbd> to redo)</td></tr>
             <tr><td><kbd>B</kbd></td><td>Original / corrected</td></tr>
             <tr><td><kbd>Home</kbd></td><td>Playhead to the start</td></tr>
             <tr><td><kbd>+</kbd> <kbd>−</kbd> <kbd>0</kbd></td><td>Zoom in / out / fit</td></tr>
-            <tr><td>Drag the ruler</td><td>Scrub: hear the audio under the playhead</td></tr>
+            <tr><td>Drag the ruler</td><td>Scrub, and hear the audio under it</td></tr>
             <tr><td>Wheel</td><td>Scroll pitch; <kbd>Shift</kbd> time; <kbd>Ctrl</kbd> zoom</td></tr>
           </table>
         </aside>
@@ -162,7 +183,7 @@
 
     <footer id="statusbar">
       <span id="status" role="status"></span>
-      <span class="tip">Drag a note to change its pitch · <kbd>?</kbd> for help</span>
+      <span class="tip">Drag a note to change its pitch · <kbd>?</kbd> help</span>
     </footer>
     <script type="module" src="/src/main.ts"></script>
   </body>

@@ -60,8 +60,10 @@ export class Knob {
         <circle class="knob-cap" cx="${C}" cy="${C}" r="11" />
         <line class="knob-needle" x1="${C}" y1="${C}" x2="${C}" y2="${C - 9}" />
       </svg>
-      <div class="knob-label">${o.label}</div>
-      <div class="knob-value"></div>`;
+      <div class="knob-text">
+        <div class="knob-label">${o.label}</div>
+        <div class="knob-value"></div>
+      </div>`;
     this.fill = host.querySelector('.knob-fill')!;
     this.needle = host.querySelector('.knob-needle')!;
     this.readout = host.querySelector('.knob-value')!;

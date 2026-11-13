@@ -518,9 +518,9 @@ export class PianoRoll {
     g.restore();
 
     // Ruler.
-    g.fillStyle = '#0f2230';
+    g.fillStyle = '#11181d';
     g.fillRect(0, 0, w, RULER);
-    g.fillStyle = '#8fb0be';
+    g.fillStyle = '#8395a1';
     g.font = '11px system-ui, sans-serif';
     g.textBaseline = 'middle';
     g.textAlign = 'left';
