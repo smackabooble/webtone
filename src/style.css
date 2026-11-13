@@ -182,8 +182,10 @@ sp-theme {
 .scale {
   width: 156px;
 }
+/* Spectrum pads this button's label by 13px a side; pull it in so Export has the same space either side. */
 .reset {
-  width: 64px;
+  width: auto;
+  margin-right: -5px;
 }
 .export {
   width: 84px;

@@ -7,7 +7,6 @@ const KEYW = 44;
 const RULER = 22;
 const BLACK = [0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0];
 const CHROMATIC = new Array<boolean>(12).fill(true);
-const MAX_SHIFT = 12;
 
 export type Tool = 'select' | 'cut' | 'curve';
 
@@ -206,7 +205,7 @@ export class PianoRoll {
   private clampScroll() {
     const maxX = Math.max(0, this.duration * this.pps - (this.w - KEYW) + 40);
     this.scrollX = Math.max(0, Math.min(maxX, this.scrollX));
-    this.top = Math.max(24, Math.min(120, this.top));
+    this.top = Math.max(8, Math.min(140, this.top));
   }
 
   private hit(x: number, y: number): number {
@@ -336,7 +335,7 @@ export class PianoRoll {
     const note = this.notes[d.index];
     let target = d.start + (d.y - y) / this.rowH;
     if (!e.altKey) target = this.snap(target);
-    const shift = Math.max(-MAX_SHIFT, Math.min(MAX_SHIFT, target - d.base));
+    const shift = target - d.base;
     if (shift !== note.shift) {
       if (!d.moved) {
         d.moved = true;

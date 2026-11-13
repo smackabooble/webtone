@@ -39,7 +39,7 @@ The interface uses [Adobe Spectrum](https://spectrum.adobe.com/) through [Spectr
 
 1. **Pitch tracking** – pYIN-style: for every 5 ms frame YIN proposes several pitch candidates with probabilities, then a Viterbi search over pitch bins (plus an "unvoiced" state) picks the smoothest likely path. This rejects octave errors and one-frame glitches. Runs in a Web Worker.
 2. **Note segmentation** – a hidden Markov model with attack / stable / silence states for every half-semitone (the approach of the Tony note tracker), solved with Viterbi. Vibrato and drift stay inside a note; real pitch changes start a new one. Loudness dips split repeated notes, scoops are folded into the note they lead to, and glides the tracker loses between legato notes are closed up.
-3. **Resynthesis** – TD-PSOLA: pitch-synchronous grains are re-spaced to change pitch while keeping timing and formants, so the voice keeps its character.
+3. **Resynthesis** – TD-PSOLA: pitch-synchronous grains are re-spaced to change pitch while keeping timing and formants, so the voice keeps its character. The same method time-stretches the audio when you change the tempo. There is no limit on how far a note can be moved: up to about an octave up or seven semitones down is done in one pass, and anything further is done as several smaller passes (the sound gets rougher the further you go).
 
 Newtone's own detection is not documented; the three knobs and the tools (cut, glue) are modelled on its manual.
 

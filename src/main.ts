@@ -4,7 +4,7 @@ import { PianoRoll, type Tool } from './ui/pianoroll';
 import { paletteFromTheme } from './ui/palette';
 import { MAX_BPM, MIN_BPM, barBeat, clampBpm, formatTime } from './dsp/grid';
 import { segment, notePitch, type Note } from './dsp/segment';
-import { psola } from './dsp/psola';
+import { shiftPitch } from './dsp/shift';
 import type { Analysis } from './dsp/analyze';
 import { encodeWav } from './audio/wav';
 import { makeDemo } from './audio/demo';
@@ -225,13 +225,13 @@ function refreshShifts() {
   roll.invalidate();
 }
 
-/** Run the original through PSOLA with a pitch ratio per source sample and a playback speed. */
-function process(ratioAt: (sample: number) => number): AudioBuffer {
+/** Run the original through PSOLA with a pitch ratio per analysis frame and the current playback speed. */
+function process(ratio: Float32Array): AudioBuffer {
   const src = original!;
-  const marks = analysis!.marks;
+  const { marks, f0, hopSec } = analysis!;
   let out: AudioBuffer | null = null;
   for (let c = 0; c < src.numberOfChannels; c++) {
-    const data = psola(src.getChannelData(c), marks, ratioAt, speed);
+    const data = shiftPitch(src.getChannelData(c), src.sampleRate, marks, f0, hopSec, ratio, speed);
     out ??= audio().createBuffer(src.numberOfChannels, data.length, src.sampleRate);
     out.copyToChannel(data, c);
   }
@@ -248,9 +248,7 @@ function render() {
   const shifts = frameShifts(notes, f0, hopSec, params, curve);
   const ratio = new Float32Array(shifts.length);
   for (let i = 0; i < ratio.length; i++) ratio[i] = Math.pow(2, shifts[i] / 12);
-  const framesPerSample = 1 / (original.sampleRate * hopSec);
-  const last = ratio.length - 1;
-  rendered = process((sample) => ratio[Math.min(last, Math.round(sample * framesPerSample))]);
+  rendered = process(ratio);
 }
 
 /** The untouched audio, at the current tempo, for the Original button. */
@@ -258,7 +256,7 @@ let bypassCache: { speed: number; buf: AudioBuffer } | null = null;
 function stretchedOriginal(): AudioBuffer | null {
   if (!original || !analysis) return null;
   if (speed === 1) return original;
-  if (bypassCache?.speed !== speed) bypassCache = { speed, buf: process(() => 1) };
+  if (bypassCache?.speed !== speed) bypassCache = { speed, buf: process(new Float32Array(analysis.f0.length).fill(1)) };
   return bypassCache.buf;
 }
 
@@ -563,7 +561,7 @@ field('noteOffset').addEventListener('change', () => {
   const v = Number(field('noteOffset').value);
   if (!n || !Number.isFinite(v) || Math.abs(v - n.shift) < 1e-6) return;
   pushUndo();
-  n.shift = Math.max(-12, Math.min(12, v));
+  n.shift = v;
   commit();
 });
 field('noteReset').addEventListener('click', () => resetSelected());
@@ -651,7 +649,7 @@ function nudgeSelected(dir: 1 | -1) {
   const now = n.pitch + auto + n.shift;
   const target = stepInScale(now, dir, params.mask);
   pushUndo();
-  n.shift = Math.max(-12, Math.min(12, target - (n.pitch + auto)));
+  n.shift = target - (n.pitch + auto);
   commit();
 }
 

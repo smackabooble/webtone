@@ -13,8 +13,6 @@ export interface Params {
   mask: boolean[];
 }
 
-export const MAX_SHIFT = 14;
-
 /** Automatic correction for a note, from the Center control. */
 export const autoShift = (n: Note, p: Params) => p.center * (snapToScale(n.pitch, p.mask) - n.pitch);
 
@@ -48,7 +46,7 @@ export function frameShifts(
     for (let f = n.start; f < Math.min(n.end, T); f++) {
       let s = total;
       if (f0[f] > 0) s -= p.variation * (hzToMidi(f0[f]) - n.pitch);
-      raw[f] = Math.max(-MAX_SHIFT, Math.min(MAX_SHIFT, s));
+      raw[f] = s;
     }
   }
   const width = Math.max(1, Math.round(p.transitionMs / 1000 / hopSec));
@@ -66,7 +64,7 @@ export function frameShifts(
   }
   if (curve) {
     for (let i = 0; i < T; i++) {
-      if (curve[i] !== 0 && f0[i] > 0) out[i] = Math.max(-MAX_SHIFT - 4, Math.min(MAX_SHIFT + 4, out[i] + curve[i]));
+      if (curve[i] !== 0 && f0[i] > 0) out[i] += curve[i];
     }
   }
   return out;

@@ -44,10 +44,12 @@ describe('bending the pitch line', () => {
     expect(curve[85]).toBeGreaterThan(0);
   });
 
-  it('is capped so it cannot be dragged to extremes', () => {
+  it('has no limit on how far it can be bent', () => {
     const curve = new Float32Array(200);
     bendCurve(curve, new Float32Array(200), f0, hop, 50, 0.1, 40);
-    expect(curve[50]).toBeLessThanOrEqual(12);
+    expect(curve[50]).toBeCloseTo(40, 5);
+    bendCurve(curve, new Float32Array(200), f0, hop, 50, 0.1, -55);
+    expect(curve[50]).toBeCloseTo(-55, 5);
   });
 
   it('can be straightened again', () => {

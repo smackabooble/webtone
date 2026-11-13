@@ -5,8 +5,6 @@
  * at the edges of the brush.
  */
 
-export const MAX_CURVE = 12;
-
 /**
  * Set `curve` to `base` plus a bell-shaped bump of `semitones` centred on a frame.
  * Only voiced frames are touched, since unvoiced sound has no pitch to move.
@@ -25,7 +23,7 @@ export function bendCurve(
   for (let f = Math.max(0, center - R); f <= Math.min(curve.length - 1, center + R); f++) {
     if (!(f0[f] > 0)) continue;
     const w = 0.5 * (1 + Math.cos((Math.PI * (f - center)) / R));
-    curve[f] = Math.max(-MAX_CURVE, Math.min(MAX_CURVE, base[f] + semitones * w));
+    curve[f] = base[f] + semitones * w;
   }
 }
 
