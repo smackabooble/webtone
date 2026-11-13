@@ -2,16 +2,21 @@ import { hzToMidi, type Note } from '../dsp/segment';
 
 const KEYW = 44;
 const RULER = 22;
-const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const BLACK = [0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0];
+const CHROMATIC = new Array<boolean>(12).fill(true);
 const MAX_SHIFT = 12;
 
 export class PianoRoll {
   notes: Note[] = [];
   f0: Float32Array = new Float32Array(0);
+  env: Float32Array = new Float32Array(0);
   hopSec = 0.005;
   duration = 0;
   playhead = 0;
+  /** Pitch classes notes snap to; rows outside it are dimmed. */
+  scale: boolean[] = CHROMATIC;
+  /** Snaps a dragged pitch to an allowed note. */
+  snap: (pitch: number) => number = Math.round;
 
   /** Called before the first change of a drag, so the app can save undo state. */
   onEditStart: () => void = () => {};
@@ -48,9 +53,10 @@ export class PianoRoll {
     requestAnimationFrame(loop);
   }
 
-  setData(notes: Note[], f0: Float32Array, hopSec: number, duration: number) {
+  setData(notes: Note[], f0: Float32Array, env: Float32Array, hopSec: number, duration: number) {
     this.notes = notes;
     this.f0 = f0;
+    this.env = env;
     this.hopSec = hopSec;
     this.duration = duration;
     this.selected = -1;
@@ -166,7 +172,7 @@ export class PianoRoll {
     }
     const d = this.drag;
     let target = d.target + (d.y - y) / this.rowH;
-    if (!e.altKey) target = Math.round(target);
+    if (!e.altKey) target = this.snap(target);
     let shift = target - d.note.pitch;
     shift = Math.max(-MAX_SHIFT, Math.min(MAX_SHIFT, shift));
     if (shift !== d.note.shift) {
@@ -202,110 +208,183 @@ export class PianoRoll {
     const { w, h, rowH } = this;
     const dpr = window.devicePixelRatio || 1;
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
-    g.fillStyle = '#191c22';
+
+    g.fillStyle = '#22404f';
     g.fillRect(0, 0, w, h);
 
-    // Pitch rows.
+    // Pitch rows: darker for black keys (or notes outside the scale).
+    const full = this.scale.every(Boolean);
     const pHi = Math.ceil(this.top) + 1;
     const pLo = Math.floor(this.top - (h - RULER) / rowH) - 1;
     for (let p = pLo; p <= pHi; p++) {
       const y = this.yOf(p) - rowH / 2;
       const pc = ((p % 12) + 12) % 12;
-      if (BLACK[pc]) {
-        g.fillStyle = '#14161b';
+      if (full ? BLACK[pc] : !this.scale[pc]) {
+        g.fillStyle = 'rgba(10,28,38,0.35)';
         g.fillRect(KEYW, y, w - KEYW, rowH);
       }
-      g.fillStyle = pc === 0 ? '#343946' : '#22252d';
+      g.fillStyle = pc === 0 ? 'rgba(8,22,30,0.55)' : 'rgba(8,22,30,0.22)';
       g.fillRect(KEYW, Math.round(y + rowH) - 0.5, w - KEYW, 1);
     }
 
-    // Time grid.
+    // Time grid: a dark line per step, faint subdivisions.
     const steps = [0.1, 0.25, 0.5, 1, 2, 5, 10, 30, 60];
     const step = steps.find((s) => s * this.pps >= 70) ?? 60;
     const t0 = Math.floor(this.tOf(KEYW) / step) * step;
     const t1 = this.tOf(w);
-    g.fillStyle = '#262a33';
-    for (let t = Math.max(0, t0); t <= t1; t += step) {
-      g.fillRect(Math.round(this.xOf(t)) - 0.5, RULER, 1, h - RULER);
+    for (let t = Math.max(0, t0); t <= t1 + step; t += step) {
+      for (let k = 0; k < 4; k++) {
+        g.fillStyle = k === 0 ? 'rgba(8,22,30,0.7)' : 'rgba(8,22,30,0.22)';
+        g.fillRect(Math.round(this.xOf(t + (k * step) / 4)) - 0.5, RULER, 1, h - RULER);
+      }
     }
 
-    // Notes.
     g.save();
     g.beginPath();
     g.rect(KEYW, RULER, w - KEYW, h - RULER);
     g.clip();
+
+    // Loudness blobs: pale blue shape behind each note, as tall as the voice is loud.
+    const maxH = rowH * 2.2;
+    this.notes.forEach((n) => {
+      const a = Math.max(0, n.start - 3);
+      const b = Math.min(this.env.length, n.end + 3);
+      const x0 = this.xOf(a * this.hopSec);
+      const x1 = this.xOf(b * this.hopSec);
+      if (x1 < KEYW || x0 > w || b - a < 2) return;
+      const cy = this.yOf(n.pitch + n.shift);
+      g.fillStyle = 'rgba(205,228,245,0.88)';
+      g.beginPath();
+      for (let f = a; f < b; f++) g.lineTo(this.xOf(f * this.hopSec), cy - this.env[f] * maxH);
+      for (let f = b - 1; f >= a; f--) g.lineTo(this.xOf(f * this.hopSec), cy + this.env[f] * maxH);
+      g.closePath();
+      g.fill();
+    });
+
+    // Notes: translucent orange boxes.
     this.notes.forEach((n, i) => {
       const x0 = this.xOf(n.start * this.hopSec);
       const x1 = this.xOf(n.end * this.hopSec);
       if (x1 < KEYW || x0 > w) return;
       const edited = n.shift !== 0;
+      const sel = i === this.selected;
       if (edited) {
-        g.strokeStyle = 'rgba(160,170,190,0.35)';
+        g.strokeStyle = 'rgba(255,170,90,0.5)';
         g.setLineDash([3, 3]);
-        this.roundRect(x0, this.yOf(n.pitch) - rowH / 2 + 1, x1 - x0, rowH - 2);
-        g.stroke();
+        g.strokeRect(x0 + 0.5, this.yOf(n.pitch) - rowH / 2 + 1.5, x1 - x0, rowH - 3);
         g.setLineDash([]);
       }
       const y = this.yOf(n.pitch + n.shift) - rowH / 2 + 1;
-      g.fillStyle = edited ? 'rgba(255,176,64,0.55)' : 'rgba(80,170,255,0.5)';
-      this.roundRect(x0, y, x1 - x0, rowH - 2);
+      g.fillStyle = sel ? 'rgba(255,175,100,0.9)' : edited ? 'rgba(255,160,80,0.72)' : 'rgba(255,165,95,0.5)';
+      this.roundRect(x0, y, x1 - x0, rowH - 2, 2);
       g.fill();
-      g.strokeStyle = i === this.selected ? '#ffffff' : edited ? '#ffb040' : '#5cb8ff';
-      g.lineWidth = i === this.selected ? 1.5 : 1;
-      g.stroke();
-
-      // Pitch curve inside the note.
-      g.strokeStyle = 'rgba(255,255,255,0.85)';
-      g.lineWidth = 1.2;
-      g.beginPath();
-      let pen = false;
-      for (let f = n.start; f < n.end; f++) {
-        const hz = this.f0[f];
-        if (!(hz > 0)) {
-          pen = false;
-          continue;
-        }
-        const px = this.xOf(f * this.hopSec);
-        const py = this.yOf(hzToMidi(hz) + n.shift);
-        if (pen) g.lineTo(px, py);
-        else g.moveTo(px, py);
-        pen = true;
-      }
+      g.lineWidth = sel ? 2 : 1;
+      g.strokeStyle = sel ? '#ffe2c2' : 'rgba(255,150,70,0.95)';
       g.stroke();
       g.lineWidth = 1;
     });
 
-    // Playhead.
+    // Pitch curve: brown outline with an orange core. Continuous, runs between notes.
+    const noteOf = new Int32Array(this.f0.length).fill(-1);
+    this.notes.forEach((n, i) => noteOf.fill(i, n.start, n.end));
+    const fA = Math.max(0, Math.floor(this.tOf(KEYW) / this.hopSec) - 1);
+    const fB = Math.min(this.f0.length, Math.ceil(t1 / this.hopSec) + 1);
+    const maxGap = Math.round(0.4 / this.hopSec);
+    const path = new Path2D();
+    let pen = false;
+    let last = -Infinity;
+    let prevX = 0;
+    let prevY = 0;
+    for (let f = Math.max(0, fA - maxGap); f < fB; f++) {
+      const hz = this.f0[f];
+      if (!(hz > 0)) continue;
+      if (f - last > maxGap) pen = false;
+      last = f;
+      const ni = noteOf[f];
+      const px = this.xOf(f * this.hopSec);
+      const py = this.yOf(hzToMidi(hz) + (ni >= 0 ? this.notes[ni].shift : 0));
+      if (!pen) path.moveTo(px, py);
+      else path.quadraticCurveTo(prevX, prevY, (prevX + px) / 2, (prevY + py) / 2);
+      prevX = px;
+      prevY = py;
+      pen = true;
+    }
+    g.lineJoin = 'round';
+    g.lineCap = 'round';
+    g.strokeStyle = '#6b3510';
+    g.lineWidth = 4;
+    g.stroke(path);
+    g.strokeStyle = '#f59a3c';
+    g.lineWidth = 1.8;
+    g.stroke(path);
+    g.lineWidth = 1;
+
+    // Playhead: thin light line.
     const px = Math.round(this.xOf(this.playhead)) - 0.5;
-    g.fillStyle = '#ff5c7a';
-    g.fillRect(px, RULER, 1.5, h - RULER);
+    g.fillStyle = 'rgba(225,235,240,0.85)';
+    g.fillRect(px, RULER, 1, h - RULER);
     g.restore();
 
     // Ruler.
-    g.fillStyle = '#1d2027';
+    g.fillStyle = '#0f2230';
     g.fillRect(0, 0, w, RULER);
-    g.fillStyle = '#8a91a0';
+    g.fillStyle = '#8fb0be';
     g.font = '11px system-ui, sans-serif';
     g.textBaseline = 'middle';
     g.textAlign = 'left';
     for (let t = Math.max(0, t0); t <= t1; t += step) {
       const x = this.xOf(t);
       if (x < KEYW) continue;
-      g.fillText(this.fmtTime(t, step), x + 4, RULER / 2);
+      g.fillRect(Math.round(x) - 0.5, RULER - 7, 1, 7);
+      g.fillText(this.fmtTime(t, step), x + 4, RULER / 2 - 1);
+    }
+    const hx = this.xOf(this.playhead);
+    if (hx >= KEYW) {
+      g.fillStyle = '#f59a3c';
+      g.beginPath();
+      g.moveTo(hx - 7, 2);
+      g.lineTo(hx + 8, 2);
+      g.lineTo(hx + 0.5, RULER - 2);
+      g.closePath();
+      g.fill();
     }
 
-    // Key gutter.
-    g.fillStyle = '#1d2027';
+    // Piano keys.
+    g.save();
+    g.beginPath();
+    g.rect(0, RULER, KEYW, h - RULER);
+    g.clip();
+    g.fillStyle = '#16262f';
     g.fillRect(0, RULER, KEYW, h - RULER);
     g.textAlign = 'right';
     for (let p = pLo; p <= pHi; p++) {
       const pc = ((p % 12) + 12) % 12;
-      const y = this.yOf(p);
-      if (y < RULER + 4) continue;
-      g.fillStyle = pc === 0 ? '#d8dce4' : BLACK[pc] ? '#5d6472' : '#8a91a0';
-      g.fillText(NAMES[pc] + (Math.floor(p / 12) - 1), KEYW - 6, y);
+      const y = this.yOf(p) - rowH / 2;
+      const black = BLACK[pc] === 1;
+      const inScale = this.scale[pc];
+      if (black) {
+        const kg = g.createLinearGradient(0, 0, KEYW, 0);
+        kg.addColorStop(0, '#2b3a43');
+        kg.addColorStop(1, '#0e171c');
+        g.fillStyle = inScale ? kg : '#18232a';
+        g.fillRect(0, y + 1, KEYW * 0.62, rowH - 2);
+      } else {
+        const kg = g.createLinearGradient(0, 0, KEYW, 0);
+        kg.addColorStop(0, inScale ? '#f4f7f8' : '#9aa5aa');
+        kg.addColorStop(1, inScale ? '#c9d2d6' : '#7d888d');
+        g.fillStyle = kg;
+        g.fillRect(0, y, KEYW, rowH);
+        g.fillStyle = '#7e8b91';
+        g.fillRect(0, Math.round(y + rowH) - 0.5, KEYW, 1);
+      }
+      if (pc === 0) {
+        g.fillStyle = '#5d6e76';
+        g.font = '11px system-ui, sans-serif';
+        g.fillText('C ' + (Math.floor(p / 12) - 1), KEYW - 5, y + rowH / 2);
+      }
     }
-    g.fillStyle = '#2c303a';
+    g.restore();
+    g.fillStyle = '#0b1920';
     g.fillRect(KEYW - 0.5, 0, 1, h);
     g.fillRect(0, RULER - 0.5, w, 1);
   }
@@ -317,9 +396,9 @@ export class PianoRoll {
     return m > 0 ? `${m}:${sec.padStart(step < 1 ? 5 : 2, '0')}` : `${sec}s`;
   }
 
-  private roundRect(x: number, y: number, w: number, h: number) {
+  private roundRect(x: number, y: number, w: number, h: number, radius = 4) {
     const g = this.g;
-    const r = Math.min(4, w / 2, h / 2);
+    const r = Math.min(radius, w / 2, h / 2);
     g.beginPath();
     g.moveTo(x + r, y);
     g.arcTo(x + w, y, x + w, y + h, r);

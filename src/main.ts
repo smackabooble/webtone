@@ -5,6 +5,7 @@ import { psola } from './dsp/psola';
 import type { Analysis } from './dsp/analyze';
 import { encodeWav } from './audio/wav';
 import { makeDemo } from './audio/demo';
+import { KEY_NAMES, SCALES, scaleMask, snapToScale } from './dsp/scale';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const btn = (id: string) => $<HTMLButtonElement>(id);
@@ -80,7 +81,7 @@ async function loadBuffer(buf: AudioBuffer) {
   undoStack.length = 0;
   playOffset = 0;
   $('hint').classList.add('hidden');
-  roll.setData(notes, result.f0, result.hopSec, buf.duration);
+  roll.setData(notes, result.f0, result.env, result.hopSec, buf.duration);
   setEnabled(true);
   setStatus(notes.length ? `${notes.length} notes` : 'No pitched notes found.');
 }
@@ -202,6 +203,25 @@ function undo() {
   commit();
 }
 
+// ---------- Scale ----------
+
+const keySel = $<HTMLSelectElement>('key');
+const scaleSel = $<HTMLSelectElement>('scale');
+KEY_NAMES.forEach((name, i) => keySel.add(new Option(name, String(i))));
+Object.keys(SCALES).forEach((name) => scaleSel.add(new Option(name, name)));
+let mask = scaleMask(0, SCALES.Chromatic);
+
+function updateScale() {
+  mask = scaleMask(Number(keySel.value), SCALES[scaleSel.value]);
+  keySel.disabled = scaleSel.value === 'Chromatic';
+  roll.scale = mask;
+  roll.snap = (p) => snapToScale(p, mask);
+  roll.invalidate();
+}
+keySel.onchange = updateScale;
+scaleSel.onchange = updateScale;
+updateScale();
+
 roll.onEditStart = pushUndo;
 roll.onEdit = commit;
 roll.onSeek = seek;
@@ -228,7 +248,7 @@ btn('play').onclick = () => (isPlaying() ? stop() : play());
 
 btn('snap').onclick = () => {
   pushUndo();
-  for (const n of notes) n.shift = Math.round(n.pitch) - n.pitch;
+  for (const n of notes) n.shift = snapToScale(n.pitch, mask) - n.pitch;
   commit();
 };
 
@@ -254,7 +274,7 @@ btn('export').onclick = () => {
 };
 
 window.addEventListener('keydown', (e) => {
-  if (e.target instanceof HTMLInputElement) return;
+  if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
   if (e.code === 'Space') {
     e.preventDefault();
     if (rendered) isPlaying() ? stop() : play();

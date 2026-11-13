@@ -3,6 +3,8 @@ export interface PitchTrack {
   f0: Float32Array;
   /** Seconds between frames. */
   hopSec: number;
+  /** Loudness per frame (RMS). */
+  rms: Float32Array;
 }
 
 /** Box-filter decimation. Crude, but plenty for pitch detection. */
@@ -87,7 +89,7 @@ export function detectPitch(
   const gate = maxRms * 0.03;
   for (let i = 0; i < nFrames; i++) if (rms[i] < gate) f0[i] = 0;
 
-  return { f0: medianFilter(f0, 5), hopSec: hop / sr };
+  return { f0: medianFilter(f0, 5), hopSec: hop / sr, rms };
 }
 
 function medianFilter(x: Float32Array, size: number): Float32Array {
