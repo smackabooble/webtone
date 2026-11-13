@@ -185,9 +185,6 @@ select.scale {
   background: var(--line);
   flex: none;
 }
-.spacer {
-  flex: 1;
-}
 .group {
   display: flex;
   align-items: center;
@@ -366,65 +363,6 @@ select.scale {
 }
 .knob {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  width: 70px;
-  padding: 2px 0;
-  border-radius: 8px;
-  cursor: ns-resize;
-  user-select: none;
-  touch-action: none;
-}
-.knob:hover,
-.knob.turning {
-  background: rgba(255, 255, 255, 0.05);
-}
-.knob svg {
-  display: block;
-  width: 36px;
-  height: 36px;
-}
-.knob-track {
-  fill: none;
-  stroke: #0f1e27;
-  stroke-width: 4;
-  stroke-linecap: round;
-}
-.knob-fill {
-  fill: none;
-  stroke: var(--accent);
-  stroke-width: 4;
-  stroke-linecap: round;
-}
-.knob-cap {
-  fill: #2d4351;
-  stroke: #0f1e27;
-}
-.knob-needle {
-  stroke: var(--text);
-  stroke-width: 2;
-  stroke-linecap: round;
-}
-.knob-label {
-  font-size: 10px;
-  letter-spacing: 0.6px;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-.knob-value {
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-}
-
-/* ---------- Tools + canvas ---------- */
-#body {
-  display: flex;
-  flex: 1;
-  min-height: 0;
-}
-#tools {
-  display: flex;
-  flex-direction: column;
   align-items: center;
   gap: 6px;
   width: 86px;
