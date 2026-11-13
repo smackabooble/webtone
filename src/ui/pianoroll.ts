@@ -285,15 +285,17 @@ export class PianoRoll {
     const fB = Math.min(this.f0.length, Math.ceil(t1 / this.hopSec) + 1);
     g.lineJoin = 'round';
     g.strokeStyle = '#ee4b2b';
-    g.lineWidth = 1.6;
+    g.lineWidth = 1.8;
     g.beginPath();
+    // The curve is continuous: short gaps are bridged, so it runs between notes too.
+    const maxGap = Math.round(0.4 / this.hopSec);
     let pen = false;
-    for (let f = fA; f < fB; f++) {
+    let last = -Infinity;
+    for (let f = Math.max(0, fA - maxGap); f < fB; f++) {
       const hz = this.f0[f];
-      if (!(hz > 0)) {
-        pen = false;
-        continue;
-      }
+      if (!(hz > 0)) continue;
+      if (f - last > maxGap) pen = false;
+      last = f;
       const ni = noteOf[f];
       const shift = ni >= 0 ? this.notes[ni].shift : 0;
       const px = this.xOf(f * this.hopSec);
