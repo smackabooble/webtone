@@ -5,6 +5,7 @@ import { psola } from './dsp/psola';
 import type { Analysis } from './dsp/analyze';
 import { encodeWav } from './audio/wav';
 import { makeDemo } from './audio/demo';
+import { GRAIN_SEC, grainGain, grainHop, hannCurve } from './audio/scrub';
 import { KEY_NAMES, SCALES, scaleMask, snapToScale, midiName, stepInScale } from './dsp/scale';
 import { autoShift, frameShifts, isNeutral, totalShift, type Params } from './dsp/render';
 
@@ -281,47 +282,62 @@ function setBypass(on: boolean) {
   if (was) play();
 }
 
-// Dragging the playhead pauses playback and plays the audio under it, like Newtone: short,
-// overlapping grains of the corrected audio are played from wherever the playhead is, so you
-// hear exactly what is there (at the right pitch) however fast you drag. Holding still is silent.
+// Dragging the playhead pauses playback and plays the audio under it, like Newtone. The sound
+// is held for as long as the playhead is held, at the pitch that is there (see audio/scrub.ts).
 let resumeAfterScrub = false;
+let scrubbing = false;
 let scrubTimer = 0;
-let lastScrubMove = 0;
-const GRAIN_SEC = 0.1;
-const GRAIN_HOP_MS = 25;
-const grainWindow = Float32Array.from({ length: 64 }, (_, i) => 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / 63));
+let nextGrainAt = 0;
+const hann = hannCurve();
 
-function scrubGrain() {
+/** Length of one pitch period in the (corrected) audio at a position, or 0 if unvoiced. */
+function periodAt(pos: number): number {
+  if (!analysis) return 0;
+  const f = Math.min(analysis.f0.length - 1, Math.max(0, Math.round(pos / analysis.hopSec)));
+  const hz = analysis.f0[f];
+  if (!(hz > 0)) return 0;
+  const shift = bypass ? 0 : (roll.frameShift?.[f] ?? 0);
+  return 1 / (hz * Math.pow(2, shift / 12));
+}
+
+function scheduleGrains() {
   const buf = current();
-  if (!buf || performance.now() - lastScrubMove > 150) return;
+  if (!scrubbing || !buf) return;
   const a = audio();
-  const node = a.createBufferSource();
-  node.buffer = buf;
-  const gain = a.createGain();
-  gain.gain.value = 0;
-  // Four Hann-shaped grains overlap at any moment, which sum to twice unity.
-  const when = a.currentTime;
-  gain.gain.setValueCurveAtTime(grainWindow.map((v) => v * 0.5), when, GRAIN_SEC);
-  node.connect(gain).connect(a.destination);
-  node.start(when, Math.min(Math.max(0, playOffset), Math.max(0, buf.duration - 0.01)), GRAIN_SEC);
+  const now = a.currentTime;
+  if (nextGrainAt < now) nextGrainAt = now + 0.005;
+  // Schedule a little ahead on the audio clock so the spacing is exact.
+  while (nextGrainAt < now + 0.06) {
+    const pos = playOffset;
+    const hop = grainHop(periodAt(pos));
+    const node = a.createBufferSource();
+    node.buffer = buf;
+    const gain = a.createGain();
+    gain.gain.value = 0;
+    gain.gain.setValueCurveAtTime(hann.map((v) => v * grainGain(hop)), nextGrainAt, GRAIN_SEC);
+    node.connect(gain).connect(a.destination);
+    node.start(nextGrainAt, Math.max(0, Math.min(pos - GRAIN_SEC / 2, buf.duration)), GRAIN_SEC);
+    nextGrainAt += hop;
+  }
 }
 
 function scrubStart() {
   resumeAfterScrub = isPlaying();
   stop();
   void audio().resume();
+  scrubbing = true;
+  nextGrainAt = 0;
   window.clearInterval(scrubTimer);
-  scrubTimer = window.setInterval(scrubGrain, GRAIN_HOP_MS);
-  lastScrubMove = performance.now();
+  scrubTimer = window.setInterval(scheduleGrains, 15);
 }
 
 function scrub(t: number) {
   playOffset = t;
-  lastScrubMove = performance.now();
   roll.setPlayhead(t, false);
 }
 
 function scrubEnd() {
+  scrubbing = false;
   window.clearInterval(scrubTimer);
   if (resumeAfterScrub) play();
   resumeAfterScrub = false;
